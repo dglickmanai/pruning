@@ -28,19 +28,7 @@ def get_llm(model, cache_dir="llm_weights"):
 
 
 def main():
-    parser = argparse.ArgumentParser()
-    parser.add_argument('--model', type=str, help='LLaMA model')
-    parser.add_argument('--seed', type=int, default=0, help='Seed for sampling the calibration data.')
-    parser.add_argument('--nsamples', type=int, default=128, help='Number of calibration samples.')
-    parser.add_argument('--sparsity_ratio', type=float, default=0, help='Sparsity level')
-    parser.add_argument("--sparsity_type", type=str, choices=["unstructured", "4:8", "2:4"])
-    parser.add_argument("--prune_method", type=str, choices=["magnitude", "wanda", "sparsegpt"])
-    parser.add_argument("--cache_dir", default="llm_weights", type=str)
-    parser.add_argument('--use_variant', action="store_true",
-                        help="whether to use the wanda variant described in the appendix")
-    parser.add_argument('--save', type=str, default=None, help='Path to save results.')
-    parser.add_argument('--save_model', type=str, default=None, help='Path to save the pruned model.')
-    args = parser.parse_args()
+    args = get_args()
 
     # Setting seeds for reproducibility
     np.random.seed(args.seed)
@@ -91,6 +79,23 @@ def main():
     if args.save_model:
         model.save_pretrained(args.save_model)
         tokenizer.save_pretrained(args.save_model)
+
+
+def get_args():
+    parser = argparse.ArgumentParser()
+    parser.add_argument('--model', type=str, help='LLaMA model')
+    parser.add_argument('--seed', type=int, default=0, help='Seed for sampling the calibration data.')
+    parser.add_argument('--nsamples', type=int, default=128, help='Number of calibration samples.')
+    parser.add_argument('--sparsity_ratio', type=float, default=0, help='Sparsity level')
+    parser.add_argument("--sparsity_type", type=str, choices=["unstructured", "4:8", "2:4"])
+    parser.add_argument("--prune_method", type=str, choices=["magnitude", "wanda", "sparsegpt"])
+    parser.add_argument("--cache_dir", default="llm_weights", type=str)
+    parser.add_argument('--use_variant', action="store_true",
+                        help="whether to use the wanda variant described in the appendix")
+    parser.add_argument('--save', type=str, default=None, help='Path to save results.')
+    parser.add_argument('--save_model', type=str, default=None, help='Path to save the pruned model.')
+    args = parser.parse_args()
+    return args
 
 
 if __name__ == '__main__':
