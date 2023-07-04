@@ -29,6 +29,10 @@ def get_llm(model, cache_dir="llm_weights"):
 
 def main():
     args = get_args()
+    if args.wandb_exp_name is not None:
+        import wandb
+        wandb.init(project="pruning", name=args.wandb_exp_name)
+        wandb.config.update(args)
 
     # Setting seeds for reproducibility
     np.random.seed(args.seed)
@@ -68,6 +72,7 @@ def main():
     ################################################################
     ppl = eval_ppl(model, tokenizer, device)
     print(f"ppl on wikitext {ppl}")
+    wandb.log({"ppl": ppl, "sparsity": sparsity_ratio})
 
     if not os.path.exists(args.save):
         os.makedirs(args.save)
