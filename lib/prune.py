@@ -29,32 +29,6 @@ def find_layers(module, layers=[nn.Linear], name=''):
         ))
     return res
 
-def check_sparsity(model):
-    use_cache = model.config.use_cache 
-    model.config.use_cache = False 
-
-    layers = model.model.layers
-    count = 0 
-    total_params = 0
-    for i in range(len(layers)):
-        layer = layers[i]
-        subset = find_layers(layer)
-
-        sub_count = 0
-        sub_params = 0
-        for name in subset:
-            W = subset[name].weight.data
-            count += (W==0).sum().item()
-            total_params += W.numel()
-
-            sub_count += (W==0).sum().item()
-            sub_params += W.numel()
-
-        print(f"layer {i} sparsity {float(sub_count)/sub_params:.6f}")
-
-    model.config.use_cache = use_cache 
-    return float(count)/total_params 
-
 def prepare_calibration_input(model, dataloader, device):
     use_cache = model.config.use_cache
     model.config.use_cache = False
@@ -84,7 +58,7 @@ def prepare_calibration_input(model, dataloader, device):
         try:
             model(batch[0].to(device))
         except ValueError:
-            pass 
+            pass
     layers[0] = layers[0].module
 
     outs = torch.zeros_like(inps)
@@ -92,45 +66,24 @@ def prepare_calibration_input(model, dataloader, device):
     position_ids = cache['position_ids']
     model.config.use_cache = use_cache
 
-    return inps, outs, attention_mask, position_ids 
+    return inps, outs, attention_mask, position_ids
 
 def return_given_alpha(alpha, sort_res, W_metric, tmp_metric, sum_before):
-    thres_cumsum = sum_before * alpha 
+    thres_cumsum = sum_before * alpha
     sort_mask = tmp_metric <= thres_cumsum.reshape((-1,1))
     thres = torch.gather(sort_res[0], dim=1, index=sort_mask.sum(dim=1, keepdims=True)-1)
     W_mask = (W_metric <= thres)
     cur_sparsity = (W_mask==True).sum() / W_mask.numel()
     return W_mask, cur_sparsity
 
-def prune_magnitude(args, model, tokenizer, device=torch.device("cuda:0"), prune_n=0, prune_m=0):
-    layers = model.model.layers 
-
-    for i in range(len(layers)):
-        layer = layers[i]
-        subset = find_layers(layer)
-
-        for name in subset:
-            W = subset[name].weight.data 
-            W_metric = torch.abs(W)
-            if prune_n != 0:
-                W_mask = (torch.zeros_like(W)==1)
-                for ii in range(W_metric.shape[1]):
-                    if ii % prune_m == 0:
-                        tmp = W_metric[:,ii:(ii+prune_m)].float()
-                        W_mask.scatter_(1,ii+torch.topk(tmp, prune_n,dim=1, largest=False)[1], True)
-            else:
-                thresh = torch.sort(W_metric.flatten().cuda())[0][int(W.numel()*args.sparsity_ratio)].cpu()
-                W_mask = (W_metric<=thresh)
-
-            W[W_mask] = 0
-
 def prune_wanda(args, model, tokenizer, device=torch.device("cuda:0"), prune_n=0, prune_m=0):
-    use_cache = model.config.use_cache 
-    model.config.use_cache = False 
+    use_cache = model.config.use_cache
+    model.config.use_cache = False
 
     print("loading calibdation data")
     dataloader, _ = get_loaders("c4",nsamples=args.nsamples,seed=args.seed,seqlen=2048,tokenizer=tokenizer)
     print("dataset loading complete")
+    #forwards the model to get actual activations
     with torch.no_grad():
         inps, outs, attention_mask, position_ids = prepare_calibration_input(model, dataloader, device)
 
@@ -176,7 +129,7 @@ def prune_wanda(args, model, tokenizer, device=torch.device("cuda:0"), prune_n=0
                 sort_res = torch.sort(W_metric, dim=-1, stable=True)
 
                 if args.use_variant:
-                    # wanda variant 
+                    # wanda variant
                     tmp_metric = torch.cumsum(sort_res[0], dim=1)
                     sum_before = W_metric.sum(dim=1)
 
@@ -191,7 +144,7 @@ def prune_wanda(args, model, tokenizer, device=torch.device("cuda:0"), prune_n=0
                             alpha_new = (alpha + alpha_hist[1]) / 2.0
                             alpha_hist[0] = alpha
 
-                        alpha = alpha_new 
+                        alpha = alpha_new
                         W_mask, cur_sparsity = return_given_alpha(alpha, sort_res, W_metric, tmp_metric, sum_before)
                     print(f"alpha found {alpha} sparsity {cur_sparsity:.6f}")
                 else:
@@ -199,14 +152,14 @@ def prune_wanda(args, model, tokenizer, device=torch.device("cuda:0"), prune_n=0
                     indices = sort_res[1][:,:int(W_metric.shape[1]*args.sparsity_ratio)]
                     W_mask.scatter_(1, indices, True)
 
-            subset[name].weight.data[W_mask] = 0  ## set weights to zero 
+            subset[name].weight.data[W_mask] = 0  ## set weights to zero
 
         for j in range(args.nsamples):
             with torch.no_grad():
                 outs[j] = layer(inps[j].unsqueeze(0), attention_mask=attention_mask, position_ids=position_ids)[0]
         inps, outs = outs, inps
 
-    model.config.use_cache = use_cache 
+    model.config.use_cache = use_cache
     torch.cuda.empty_cache()
 
 
@@ -298,3 +251,52 @@ def prune_sparsegpt(args, model, tokenizer, dev, prune_n=0, prune_m=0):
 
     model.config.use_cache = use_cache
     torch.cuda.empty_cache()
+
+
+def prune_magnitude(args, model, tokenizer, device=torch.device("cuda:0"), prune_n=0, prune_m=0):
+    layers = model.model.layers
+
+    for i in range(len(layers)):
+        layer = layers[i]
+        subset = find_layers(layer)
+
+        for name in subset:
+            W = subset[name].weight.data
+            W_metric = torch.abs(W)
+            if prune_n != 0:
+                W_mask = (torch.zeros_like(W)==1)
+                for ii in range(W_metric.shape[1]):
+                    if ii % prune_m == 0:
+                        tmp = W_metric[:,ii:(ii+prune_m)].float()
+                        W_mask.scatter_(1,ii+torch.topk(tmp, prune_n,dim=1, largest=False)[1], True)
+            else:
+                thresh = torch.sort(W_metric.flatten().cuda())[0][int(W.numel()*args.sparsity_ratio)].cpu()
+                W_mask = (W_metric<=thresh)
+
+            W[W_mask] = 0
+
+def check_sparsity(model):
+    use_cache = model.config.use_cache
+    model.config.use_cache = False
+
+    layers = model.model.layers
+    count = 0
+    total_params = 0
+    for i in range(len(layers)):
+        layer = layers[i]
+        subset = find_layers(layer)
+
+        sub_count = 0
+        sub_params = 0
+        for name in subset:
+            W = subset[name].weight.data
+            count += (W==0).sum().item()
+            total_params += W.numel()
+
+            sub_count += (W==0).sum().item()
+            sub_params += W.numel()
+
+        print(f"layer {i} sparsity {float(sub_count)/sub_params:.6f}")
+
+    model.config.use_cache = use_cache
+    return float(count)/total_params

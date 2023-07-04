@@ -1,6 +1,7 @@
 import torch
 import torch.nn as nn
 
+
 # Define WrappedGPT class
 class WrappedGPT:
     """
@@ -16,7 +17,7 @@ class WrappedGPT:
         self.scaler_row = torch.zeros((self.columns), device=self.dev)
         self.nsamples = 0
 
-        self.layer_id = layer_id 
+        self.layer_id = layer_id
         self.layer_name = layer_name
 
     def add_batch(self, inp, out):
@@ -27,9 +28,13 @@ class WrappedGPT:
             if len(inp.shape) == 3:
                 inp = inp.reshape((-1, inp.shape[-1]))
             inp = inp.t()
+        else:
+            print(f'dfiferent layer tpye {type(self.layer)}')
+            print(f'dfiferent layer tpye {type(self.layer)}')
+            print(f'dfiferent layer tpye {type(self.layer)}')
 
-        self.scaler_row *= self.nsamples / (self.nsamples+tmp)
+        self.scaler_row *= self.nsamples / (self.nsamples + tmp)
         self.nsamples += tmp
 
         inp = inp.type(torch.float32)
-        self.scaler_row += torch.norm(inp, p=2, dim=1) ** 2  / self.nsamples
+        self.scaler_row += torch.norm(inp, p=2, dim=1) ** 2 / self.nsamples
