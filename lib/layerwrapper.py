@@ -29,9 +29,9 @@ class WrappedGPT:
                 inp = inp.reshape((-1, inp.shape[-1]))
             inp = inp.t()
         else:
-            print(f'dfiferent layer tpye {type(self.layer)}')
-            print(f'dfiferent layer tpye {type(self.layer)}')
-            print(f'dfiferent layer tpye {type(self.layer)}')
+            print(f'WARNGING dfiferent layer tpye {type(self.layer)}')
+            print(f'WARNGING dfiferent layer tpye {type(self.layer)}')
+            print(f'WARNGING dfiferent layer tpye {type(self.layer)}')
 
         self.scaler_row *= self.nsamples / (self.nsamples + tmp)
         self.nsamples += tmp
