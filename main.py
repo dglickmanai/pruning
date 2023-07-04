@@ -94,6 +94,9 @@ def get_args():
                         help="whether to use the wanda variant described in the appendix")
     parser.add_argument('--save', type=str, default=None, help='Path to save results.')
     parser.add_argument('--save_model', type=str, default=None, help='Path to save the pruned model.')
+    parser.add_argument('--activation_strength_metric', type=str, default='norm', choices=['norm', 'var', 'percentile'])
+
+    parser.add_argument('wandb_exp_name', type=str, help='Wandb experiment name', default='prune')
     args = parser.parse_args()
     return args
 

@@ -8,7 +8,8 @@ class WrappedGPT:
     This class wraps a GPT layer for specific operations.
     """
 
-    def __init__(self, layer, layer_id=0, layer_name="none"):
+    def __init__(self, layer, layer_id=0, layer_name="none", activation_strength_metric="norm"):
+        self.activation_strength_metric = activation_strength_metric
         self.layer = layer
         self.dev = self.layer.weight.device
         self.rows = layer.weight.data.shape[0]
@@ -37,4 +38,10 @@ class WrappedGPT:
         self.nsamples += tmp
 
         inp = inp.type(torch.float32)
-        self.scaler_row += torch.norm(inp, p=2, dim=1) ** 2 / self.nsamples
+        if self.activation_strength_metric == "norm":
+            scaler = torch.norm(inp, p=2, dim=1)
+        if self.activation_strength_metric == "var":
+            scaler = torch.std(inp, dim=1)
+        if self.activation_strength_metric == "percentile":
+            scaler = torch.mean(inp, dim=1) + 2 * torch.std(inp, dim=1)
+        self.scaler_row += scaler ** 2 / self.nsamples
