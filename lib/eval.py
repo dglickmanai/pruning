@@ -21,7 +21,7 @@ def eval_ppl(model, tokenizer, device=torch.device("cuda:0")):
 
     # Evaluate ppl in no grad context to avoid updating the model
     with torch.no_grad():
-        ppl = eval_ppl_wikitext(model, testloader, 1, device)
+        ppl = eval_ppl_wikitext(model, testloader, 8, device)
     return ppl 
 
 # Function to evaluate perplexity (ppl) specifically on the wikitext dataset
