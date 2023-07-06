@@ -105,7 +105,7 @@ def prune_wanda(args, model, tokenizer, device=torch.device("cuda:0"), prune_n=0
 
         wrapped_layers = {}
         for name in subset:
-            wrapped_layers[name] = WrappedGPT(subset[name], args.activation_strength_metric)
+            wrapped_layers[name] = WrappedGPT(subset[name], activation_strength_metric=args.activation_strength_metric)
 
         def add_batch(name):
             def tmp(_, inp, out):

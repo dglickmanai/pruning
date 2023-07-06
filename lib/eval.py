@@ -4,7 +4,8 @@ import torch
 import torch.nn as nn
 
 # Import get_loaders function from data module within the same directory
-from .data import get_loaders 
+from .data import get_loaders
+
 
 # Function to evaluate perplexity (ppl) on a specified model and tokenizer
 def eval_ppl(model, tokenizer, device=torch.device("cuda:0")):
@@ -16,13 +17,14 @@ def eval_ppl(model, tokenizer, device=torch.device("cuda:0")):
 
     # Get the test loader
     _, testloader = get_loaders(
-        dataset, seed=0, seqlen=model.seqlen, tokenizer=tokenizer 
+        dataset, seed=0, seqlen=model.seqlen, tokenizer=tokenizer
     )
 
     # Evaluate ppl in no grad context to avoid updating the model
     with torch.no_grad():
         ppl = eval_ppl_wikitext(model, testloader, 8, device)
-    return ppl 
+    return ppl
+
 
 # Function to evaluate perplexity (ppl) specifically on the wikitext dataset
 def eval_ppl_wikitext(model, testenc, bs=1, device=None):
@@ -37,16 +39,16 @@ def eval_ppl_wikitext(model, testenc, bs=1, device=None):
     print(f"nsamples {nsamples}")
 
     # Loop through each batch
-    for i in range(0,nsamples,bs):
+    for i in range(0, nsamples, bs):
         if i % 50 == 0:
             print(f"sample {i}")
 
         # Calculate end index
-        j = min(i+bs, nsamples)
+        j = min(i + bs, nsamples)
 
         # Prepare inputs and move to device
-        inputs = testenc[:,(i * model.seqlen):(j * model.seqlen)].to(device)
-        inputs = inputs.reshape(j-i, model.seqlen)
+        inputs = testenc[:, (i * model.seqlen):(j * model.seqlen)].to(device)
+        inputs = inputs.reshape(j - i, model.seqlen)
 
         # Forward pass through the model
         lm_logits = model(inputs).logits
@@ -60,14 +62,14 @@ def eval_ppl_wikitext(model, testenc, bs=1, device=None):
         loss = loss_fct(shift_logits.reshape(-1, shift_logits.size(-1)), shift_labels.reshape(-1))
 
         # Calculate negative log likelihood
-        neg_log_likelihood = loss.float() * model.seqlen * (j-i)
+        neg_log_likelihood = loss.float() * model.seqlen * (j - i)
 
         # Append to list of negative log likelihoods
         nlls.append(neg_log_likelihood)
 
     # Compute perplexity
     ppl = torch.exp(torch.stack(nlls).sum() / (nsamples * model.seqlen))
-
+    print(f"ppl {ppl}")
     # Empty CUDA cache to save memory
     torch.cuda.empty_cache()
 
