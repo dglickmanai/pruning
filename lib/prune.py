@@ -260,7 +260,7 @@ def prune_activations(args, model, tokenizer, device=torch.device("cuda:0"), pru
     # passes layer by layer
     for i in range(len(layers)):
         layer = layers[i]
-        subset = wrap_layers(layer, args.weights_to_prune)
+        subset = wrap_layers(layer, names=args.weights_to_prune)
 
         if f"model.layers.{i}" in model.hf_device_map:  ## handle the case for llama-30B and llama-65B, when the device map has multiple GPUs;
             dev = model.hf_device_map[f"model.layers.{i}"]
@@ -416,7 +416,7 @@ def prune_magnitude(args, model, tokenizer, device=torch.device("cuda:0"), prune
             W[W_mask] = 0
 
 
-def check_sparsity(model,args):
+def check_sparsity(model, args):
     use_cache = model.config.use_cache
     model.config.use_cache = False
 
