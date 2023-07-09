@@ -9,7 +9,7 @@ from .data import get_loaders
 from pdb import set_trace as st
 
 
-def find_layers(module, layers=[nn.Linear], name=''):
+def find_layers(module, layers=[nn.Linear], name='', names=[]):
     """
     Recursively find the layers of a certain type in a module.
 
@@ -21,14 +21,85 @@ def find_layers(module, layers=[nn.Linear], name=''):
     Returns:
         dict: Dictionary of layers of the given type(s) within the module.
     """
-    if type(module) in layers:
+    if type(module) in layers and (not names or name.endswith(tuple(names))):
         return {name: module}
     res = {}
     for name1, child in module.named_children():
         res.update(find_layers(
             child, layers=layers, name=name + '.' + name1 if name != '' else name1
-        ))
+            , names=names))
     return res
+
+
+class Wrapper(nn.Module):
+
+    def __init__(self, layer, track, layer_id=0, layer_name="none"):
+        super(Wrapper, self).__init__()
+        self.track = track
+        self.layer = layer
+        self.dev = self.layer.weight.device
+        self.rows = layer.weight.data.shape[0]
+        self.columns = layer.weight.data.shape[1]
+
+        self.scaler_row = torch.zeros((self.columns), device=self.dev)
+        self.nsamples = 0
+
+        self.layer_id = layer_id
+        self.layer_name = layer_name
+
+    def add_batch(self, inp, out):
+        if len(inp.shape) == 2:
+            inp = inp.unsqueeze(0)
+        tmp = inp.shape[0]
+        if isinstance(self.layer, nn.Linear):
+            if len(inp.shape) == 3:
+                inp = inp.reshape((-1, inp.shape[-1]))
+            inp = inp.t()
+        else:
+            print(f'WARNGING dfiferent layer tpye {type(self.layer)}')
+            print(f'WARNGING dfiferent layer tpye {type(self.layer)}')
+            print(f'WARNGING dfiferent layer tpye {type(self.layer)}')
+
+        self.scaler_row *= self.nsamples / (self.nsamples + tmp)
+        self.nsamples += tmp
+
+        inp = inp.type(torch.float32)
+        scaler = torch.norm(inp, p=2, dim=1)
+
+        self.scaler_row += scaler ** 2 / self.nsamples
+
+    def forward(self, x):
+        # Put your own logic here
+        out = self.layer(x)
+
+        if self.track:
+            self.add_batch(x[0].data, out.data)
+        return out
+
+
+def wrap_layers(module, layers=[nn.Linear], name='', names=[]):
+    """
+    Recursively wrap layers of a certain type in a module.
+
+    Args:
+        module (nn.Module): PyTorch module.
+        layers (list): List of layer types to wrap.
+        name (str): Name of the module.
+
+    Returns:
+        None. The module is modified in-place.
+    """
+    ret = {}
+    for name1, child in module.named_children():
+        child_name = name + '.' + name1 if name != '' else name1
+        if type(child) in layers and (not names or name.endswith(tuple(names))):
+            wrapper = Wrapper(child, track=True)
+            setattr(module, name1, wrapper)
+            ret[child_name] = wrapper
+        else:
+            wrapped_names = wrap_layers(child, layers=layers, name=child_name, names=names)
+            ret.update(wrapped_names)
+    return ret
 
 
 def prepare_calibration_input(model, dataloader, device):
@@ -96,7 +167,7 @@ def prune_wanda(args, model, tokenizer, device=torch.device("cuda:0"), prune_n=0
     layers = model.model.layers
     for i in range(len(layers)):
         layer = layers[i]
-        subset = find_layers(layer)
+        subset = find_layers(layer, names=args.weights_to_prune)
 
         if f"model.layers.{i}" in model.hf_device_map:  ## handle the case for llama-30B and llama-65B, when the device map has multiple GPUs;
             dev = model.hf_device_map[f"model.layers.{i}"]
@@ -173,6 +244,61 @@ def prune_wanda(args, model, tokenizer, device=torch.device("cuda:0"), prune_n=0
     torch.cuda.empty_cache()
 
 
+def prune_activations(args, model, tokenizer, device=torch.device("cuda:0"), prune_n=0, prune_m=0):
+    use_cache = model.config.use_cache
+    model.config.use_cache = False
+
+    print("loading calibdation data")
+    dataloader, _ = get_loaders("c4", nsamples=args.nsamples, seed=args.seed, seqlen=2048, tokenizer=tokenizer)
+    print("dataset loading complete")
+    # forwards the model to get actual activations
+    with torch.no_grad():
+        # returns input and output for the first layer
+        inps, outs, attention_mask, position_ids = prepare_calibration_input(model, dataloader, device)
+
+    layers = model.model.layers
+    # passes layer by layer
+    for i in range(len(layers)):
+        layer = layers[i]
+        subset = wrap_layers(layer, args.weights_to_prune)
+
+        if f"model.layers.{i}" in model.hf_device_map:  ## handle the case for llama-30B and llama-65B, when the device map has multiple GPUs;
+            dev = model.hf_device_map[f"model.layers.{i}"]
+            inps, outs, attention_mask, position_ids = inps.to(dev), outs.to(dev), attention_mask.to(
+                dev), position_ids.to(dev)
+
+        wrapped_layers = subset
+
+        for j in range(args.nsamples):
+            with torch.no_grad():
+                outs[j] = layer(inps[j].unsqueeze(0), attention_mask=attention_mask, position_ids=position_ids)[0]
+
+        for x in wrapped_layers.values():
+            x.track = False
+
+        for name in subset:
+            print(f"pruning layer {i} name {name}")
+            W_metric = torch.abs(subset[name].layer.weight.data) * torch.sqrt(
+                wrapped_layers[name].scaler_row.reshape((1, -1)))
+
+            W_mask = (torch.zeros_like(W_metric) == 1)  ## initialize a mask to be all False
+
+            sort_res = torch.sort(W_metric, dim=-1, stable=True)
+            # unstructured pruning
+            indices = sort_res[1][:, :int(W_metric.shape[1] * args.sparsity_ratio)]
+            W_mask.scatter_(1, indices, True)
+
+            subset[name].layer.weight.data[W_mask] = 0  ## set weights to zero
+
+        for j in range(args.nsamples):
+            with torch.no_grad():
+                outs[j] = layer(inps[j].unsqueeze(0), attention_mask=attention_mask, position_ids=position_ids)[0]
+        inps, outs = outs, inps
+
+    model.config.use_cache = use_cache
+    torch.cuda.empty_cache()
+
+
 @torch.no_grad()
 def prune_sparsegpt(args, model, tokenizer, dev, prune_n=0, prune_m=0):
     ## SparseGPT code available at: https://github.com/IST-DASLab/sparsegpt/tree/f5c25005a61f96a0933ca2f95705a963585aafaa
@@ -227,7 +353,7 @@ def prune_sparsegpt(args, model, tokenizer, dev, prune_n=0, prune_m=0):
             inps, outs, attention_mask, position_ids = inps.to(dev), outs.to(dev), attention_mask.to(
                 dev), position_ids.to(dev)
 
-        subset = find_layers(layer)
+        subset = find_layers(layer, names=args.weights_to_prune)
 
         gpts = {}
         for name in subset:
@@ -272,7 +398,7 @@ def prune_magnitude(args, model, tokenizer, device=torch.device("cuda:0"), prune
 
     for i in range(len(layers)):
         layer = layers[i]
-        subset = find_layers(layer)
+        subset = find_layers(layer, names=args.weights_to_prune)
 
         for name in subset:
             W = subset[name].weight.data
@@ -290,7 +416,7 @@ def prune_magnitude(args, model, tokenizer, device=torch.device("cuda:0"), prune
             W[W_mask] = 0
 
 
-def check_sparsity(model):
+def check_sparsity(model,args):
     use_cache = model.config.use_cache
     model.config.use_cache = False
 
@@ -299,7 +425,7 @@ def check_sparsity(model):
     total_params = 0
     for i in range(len(layers)):
         layer = layers[i]
-        subset = find_layers(layer)
+        subset = find_layers(layer, names=args.weights_to_prune)
 
         sub_count = 0
         sub_params = 0

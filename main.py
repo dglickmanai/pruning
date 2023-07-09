@@ -5,7 +5,7 @@ import torch
 from transformers import AutoTokenizer, AutoModelForCausalLM
 from importlib.metadata import version
 
-from lib.prune import prune_wanda, prune_magnitude, prune_sparsegpt, check_sparsity, find_layers
+from lib.prune import prune_wanda, prune_magnitude, prune_sparsegpt, check_sparsity, find_layers, prune_activations
 from lib.eval import eval_ppl
 
 print('torch', version('torch'))
@@ -64,10 +64,12 @@ def main():
             prune_magnitude(args, model, tokenizer, device, prune_n=prune_n, prune_m=prune_m)
         elif args.prune_method == "sparsegpt":
             prune_sparsegpt(args, model, tokenizer, device, prune_n=prune_n, prune_m=prune_m)
+        elif args.prune_method == "activations":
+            prune_activations(args, model, tokenizer, device, prune_n=prune_n, prune_m=prune_m)
 
     ################################################################
     print("*" * 30)
-    sparsity_ratio = check_sparsity(model)
+    sparsity_ratio = check_sparsity(model, args)
     print(f"sparsity sanity check {sparsity_ratio:.4f}")
     print("*" * 30)
     ################################################################
@@ -95,7 +97,7 @@ def get_args():
     parser.add_argument('--nsamples', type=int, default=128, help='Number of calibration samples.')
     parser.add_argument('--sparsity_ratio', type=float, default=0, help='Sparsity level')
     parser.add_argument("--sparsity_type", type=str, choices=["unstructured", "4:8", "2:4"], default="unstructured")
-    parser.add_argument("--prune_method", type=str, choices=["magnitude", "wanda", "sparsegpt", "none"])
+    parser.add_argument("--prune_method", type=str, choices=["magnitude", "wanda", "sparsegpt", 'activations', "none"])
     parser.add_argument("--cache_dir", default="llm_weights", type=str)
     parser.add_argument('--use_variant', action="store_true",
                         help="whether to use the wanda variant described in the appendix")
@@ -103,6 +105,10 @@ def get_args():
     parser.add_argument('--save_model', type=str, default=None, help='Path to save the pruned model.')
     parser.add_argument('--activation_strength_metric', type=str, default='norm',
                         choices=['norm', 'var', 'percentile', 'reverse'])
+    parser.add_argument('--weights_to_prune', metavar='N', type=str, nargs='*', default=[],
+                        help='what weight matrixes to prune.'
+                             'options are "q_proj,k_proj,v_proj,o_proj,gate_proj,down_proj,up_proj"'
+                             'if none are specified, all are pruned')
 
     parser.add_argument('--wandb_exp_name', type=str, help='Wandb experiment name', default='pruning')
     args = parser.parse_args()
