@@ -35,6 +35,7 @@ class Wrapper(nn.Module):
 
     def __init__(self, layer, track, layer_id=0, layer_name="none"):
         super(Wrapper, self).__init__()
+        self.layer_name = layer_name
         self.track = track
         self.layer = layer
         self.dev = self.layer.weight.device
@@ -46,6 +47,7 @@ class Wrapper(nn.Module):
 
         self.layer_id = layer_id
         self.layer_name = layer_name
+        self.mask = None
 
     def add_batch(self, inp, out):
         if len(inp.shape) == 2:
@@ -69,12 +71,43 @@ class Wrapper(nn.Module):
         self.scaler_row += scaler ** 2 / self.nsamples
 
     def forward(self, x):
+        if self.mask is not None:
+            smallest_indices = self.mask.sort(stable=True)[1][:int(self.mask.shape[0] * self.args.sparsity_ratio)]
+            mask = torch.ones_like(self.mask, dtype=x.dtype)
+            mask[smallest_indices] = 0.
+
+            x = x * mask
+
         # Put your own logic here
         out = self.layer(x)
+
+        if self.layer_name:
+            # after q_proj, do something different to out.. but this will be when learning mask directly..
+            pass
 
         if self.track:
             self.add_batch(x[0].data, out.data)
         return out
+
+    def prune(self, args):
+        # W_metric = torch.abs(self.layer.weight.data) * torch.sqrt(
+        #     self.scaler_row.reshape((1, -1)))
+        #
+        # W_mask = (torch.zeros_like(W_metric) == 1)  ## initialize a mask to be all False
+        #
+        # sort_res = torch.sort(W_metric, dim=-1, stable=True)
+        # # unstructured pruning
+        # indices = sort_res[1][:, :int(W_metric.shape[1] * args.sparsity_ratio)]
+        # W_mask.scatter_(1, indices, True)
+
+        # self.layer.weight.data[W_mask] = 0  ## set weights to zero
+
+        outgoing_edges_norm = self.layer.weight.data.norm(p=1, dim=0)
+        average_logits = torch.sqrt(self.scaler_row)  # not necesserly need sqrt
+        #
+        scores = average_logits * outgoing_edges_norm  # this should be after the relu
+        self.mask = scores
+        self.args = args
 
 
 def wrap_layers(module, layers=[nn.Linear], name='', names=[]):
@@ -93,7 +126,7 @@ def wrap_layers(module, layers=[nn.Linear], name='', names=[]):
     for name1, child in module.named_children():
         child_name = name + '.' + name1 if name != '' else name1
         if type(child) in layers and (not names or name.endswith(tuple(names))):
-            wrapper = Wrapper(child, track=True)
+            wrapper = Wrapper(child, layer_name=name1, track=True)
             setattr(module, name1, wrapper)
             ret[child_name] = wrapper
         else:
@@ -278,17 +311,18 @@ def prune_activations(args, model, tokenizer, device=torch.device("cuda:0"), pru
 
         for name in subset:
             print(f"pruning layer {i} name {name}")
-            W_metric = torch.abs(subset[name].layer.weight.data) * torch.sqrt(
-                wrapped_layers[name].scaler_row.reshape((1, -1)))
-
-            W_mask = (torch.zeros_like(W_metric) == 1)  ## initialize a mask to be all False
-
-            sort_res = torch.sort(W_metric, dim=-1, stable=True)
+            # W_metric = torch.abs(subset[name].layer.weight.data) * torch.sqrt(
+            #     wrapped_layers[name].scaler_row.reshape((1, -1)))
+            #
+            # W_mask = (torch.zeros_like(W_metric) == 1)  ## initialize a mask to be all False
+            #
+            # sort_res = torch.sort(W_metric, dim=-1, stable=True)
             # unstructured pruning
-            indices = sort_res[1][:, :int(W_metric.shape[1] * args.sparsity_ratio)]
-            W_mask.scatter_(1, indices, True)
-
-            subset[name].layer.weight.data[W_mask] = 0  ## set weights to zero
+            # indices = sort_res[1][:, :int(W_metric.shape[1] * args.sparsity_ratio)]
+            # W_mask.scatter_(1, indices, True)
+            #
+            # subset[name].layer.weight.data[W_mask] = 0  ## set weights to zero
+            subset[name].prune(args)
 
         for j in range(args.nsamples):
             with torch.no_grad():
