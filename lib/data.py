@@ -53,9 +53,10 @@ def get_c4(nsamples, seed, seqlen, tokenizer):
 
     # Load train and validation datasets
     traindata = load_dataset('allenai/c4', 'allenai--c4', data_files={'train': 'en/c4-train.00000-of-01024.json.gz'},
-                             split='train')
+                             split='train', verification_mode='no_checks')
     valdata = load_dataset('allenai/c4', 'allenai--c4',
-                           data_files={'validation': 'en/c4-validation.00000-of-00008.json.gz'}, split='validation')
+                           data_files={'validation': 'en/c4-validation.00000-of-00008.json.gz'}, split='validation',
+                           verification_mode='no_checks')
     print(f'loaded c4 from disc in {time.time() - start_time} seconds')
 
     # Generate samples from training set
