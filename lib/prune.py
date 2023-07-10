@@ -101,7 +101,7 @@ class Wrapper(nn.Module):
 
     def prune(self, args):
 
-        outgoing_edges_norm = self.layer.weight.data.norm(p=1, dim=0)
+        outgoing_edges_norm = self.layer.weight.data.norm(p=1, dim=0) / self.layer.weight.data.shape[0]
         average_logits = torch.sqrt(self.scaler_row)  # not necesserly need sqrt
         #
         scores = average_logits * outgoing_edges_norm  # this should be after the relu
