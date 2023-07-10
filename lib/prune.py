@@ -43,6 +43,7 @@ class Wrapper(nn.Module):
         self.columns = layer.weight.data.shape[1]
 
         self.scaler_row = torch.zeros((self.columns), device=self.dev)
+        self.scaler_out = torch.zeros((self.rows), device=self.dev)
         self.nsamples = 0
 
         self.layer_id = layer_id
@@ -57,21 +58,30 @@ class Wrapper(nn.Module):
             if len(inp.shape) == 3:
                 inp = inp.reshape((-1, inp.shape[-1]))
             inp = inp.t()
+            if self.layer_name == 'q_proj':
+                out = out.squeeze(0).t()
         else:
             print(f'WARNGING dfiferent layer tpye {type(self.layer)}')
             print(f'WARNGING dfiferent layer tpye {type(self.layer)}')
             print(f'WARNGING dfiferent layer tpye {type(self.layer)}')
 
         self.scaler_row *= self.nsamples / (self.nsamples + tmp)
+        self.scaler_out *= self.nsamples / (self.nsamples + tmp)
+
         self.nsamples += tmp
 
         inp = inp.type(torch.float32)
+        out = out.type(torch.float32)
         scaler = torch.norm(inp, p=2, dim=1)
+        scaler_out = torch.norm(out, p=2, dim=1)
 
         self.scaler_row += scaler ** 2 / self.nsamples
+        # self.scaler_out += scaler_out ** 2 / self.nsamples
 
     def forward(self, x):
         if self.mask is not None:
+            assert not self.track
+
             smallest_indices = self.mask.sort(stable=True)[1][:int(self.mask.shape[0] * self.args.sparsity_ratio)]
             mask = torch.ones_like(self.mask, dtype=x.dtype)
             mask[smallest_indices] = 0.
@@ -125,7 +135,7 @@ def wrap_layers(module, layers=[nn.Linear], name='', names=[]):
     ret = {}
     for name1, child in module.named_children():
         child_name = name + '.' + name1 if name != '' else name1
-        if type(child) in layers and (not names or name.endswith(tuple(names))):
+        if type(child) in layers and (not names or name1.endswith(tuple(names))):
             wrapper = Wrapper(child, layer_name=name1, track=True)
             setattr(module, name1, wrapper)
             ret[child_name] = wrapper
