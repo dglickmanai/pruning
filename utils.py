@@ -17,4 +17,4 @@ def get_random_with_gpu_with_gb_free(gb, num_device=1):
     if filtered_keys:
         return ','.join(random.sample(filtered_keys, num_device))
     else:
-        return None
+        raise ValueError(f"No GPU with {gb}GB available")

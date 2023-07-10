@@ -1,9 +1,11 @@
 import argparse
 import os
+import utils
 
 # if on university
 if os.path.isdir('/home/lab/glickmd1'):
     os.environ["HF_DATASETS_CACHE"] = "/home/lab/glickmd1/.cache/huggingface/datasets"
+    os.environ["CUDA_VISIBLE_DEVICES"] = str(utils.get_random_with_gpu_with_gb_free(50, 1))
 # export HF_DATASETS_CACHE="/cortex/users/danielg/.cache/huggingface/datasets"
 # export TRANSFORMERS_CACHE="/cortex/users/danielg/.cache/huggingface/transformers"
 # os.environ["CUDA_VISIBLE_DEVICES"] = str(gpu)
