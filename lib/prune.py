@@ -81,8 +81,8 @@ class Wrapper(nn.Module):
     def forward(self, x):
         if self.mask is not None:
             assert not self.track
-
-            smallest_indices = self.mask.sort(stable=True)[1][:int(self.mask.shape[0] * self.args.sparsity_ratio)]
+            sorted_mask = self.mask.sort(stable=True)[1]
+            smallest_indices = sorted_mask[:int(self.mask.shape[0] * self.args.sparsity_ratio)]
             mask = torch.ones_like(self.mask, dtype=x.dtype)
             mask[smallest_indices] = 0.
 
@@ -100,17 +100,6 @@ class Wrapper(nn.Module):
         return out
 
     def prune(self, args):
-        # W_metric = torch.abs(self.layer.weight.data) * torch.sqrt(
-        #     self.scaler_row.reshape((1, -1)))
-        #
-        # W_mask = (torch.zeros_like(W_metric) == 1)  ## initialize a mask to be all False
-        #
-        # sort_res = torch.sort(W_metric, dim=-1, stable=True)
-        # # unstructured pruning
-        # indices = sort_res[1][:, :int(W_metric.shape[1] * args.sparsity_ratio)]
-        # W_mask.scatter_(1, indices, True)
-
-        # self.layer.weight.data[W_mask] = 0  ## set weights to zero
 
         outgoing_edges_norm = self.layer.weight.data.norm(p=1, dim=0)
         average_logits = torch.sqrt(self.scaler_row)  # not necesserly need sqrt
@@ -132,6 +121,8 @@ def wrap_layers(module, layers=[nn.Linear], name='', names=[]):
     Returns:
         None. The module is modified in-place.
     """
+    if isinstance(names, str):
+        names = [names]
     ret = {}
     for name1, child in module.named_children():
         child_name = name + '.' + name1 if name != '' else name1
@@ -287,13 +278,10 @@ def prune_wanda(args, model, tokenizer, device=torch.device("cuda:0"), prune_n=0
     torch.cuda.empty_cache()
 
 
-def prune_activations(args, model, tokenizer, device=torch.device("cuda:0"), prune_n=0, prune_m=0):
+def prune_activations(args, model, tokenizer, dataloader, device=torch.device("cuda:0")):
     use_cache = model.config.use_cache
     model.config.use_cache = False
 
-    print("loading calibdation data")
-    dataloader, _ = get_loaders("c4", nsamples=args.nsamples, seed=args.seed, seqlen=2048, tokenizer=tokenizer)
-    print("dataset loading complete")
     # forwards the model to get actual activations
     with torch.no_grad():
         # returns input and output for the first layer
@@ -321,17 +309,6 @@ def prune_activations(args, model, tokenizer, device=torch.device("cuda:0"), pru
 
         for name in subset:
             print(f"pruning layer {i} name {name}")
-            # W_metric = torch.abs(subset[name].layer.weight.data) * torch.sqrt(
-            #     wrapped_layers[name].scaler_row.reshape((1, -1)))
-            #
-            # W_mask = (torch.zeros_like(W_metric) == 1)  ## initialize a mask to be all False
-            #
-            # sort_res = torch.sort(W_metric, dim=-1, stable=True)
-            # unstructured pruning
-            # indices = sort_res[1][:, :int(W_metric.shape[1] * args.sparsity_ratio)]
-            # W_mask.scatter_(1, indices, True)
-            #
-            # subset[name].layer.weight.data[W_mask] = 0  ## set weights to zero
             subset[name].prune(args)
 
         for j in range(args.nsamples):
