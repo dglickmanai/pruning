@@ -1,5 +1,12 @@
 import argparse
 import os
+
+# if on university
+if os.path.isdir('/home/lab/glickmd1'):
+    os.environ["HF_DATASETS_CACHE"] = "/home/lab/glickmd1/.cache/huggingface/datasets"
+# export HF_DATASETS_CACHE="/cortex/users/danielg/.cache/huggingface/datasets"
+# export TRANSFORMERS_CACHE="/cortex/users/danielg/.cache/huggingface/transformers"
+# os.environ["CUDA_VISIBLE_DEVICES"] = str(gpu)
 import numpy as np
 import torch
 from transformers import AutoTokenizer, AutoModelForCausalLM
@@ -29,7 +36,7 @@ def get_llm(model, cache_dir="llm_weights"):
 
 def main():
     args = get_args()
-    if args.wandb_exp_name is not None:
+    if args.wandb_exp_name is not None and args.wandb_exp_name != "":
         import wandb
         wandb.init(project=args.wandb_exp_name, config=args)
         args = wandb.config
