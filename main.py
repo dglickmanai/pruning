@@ -5,7 +5,8 @@ import utils
 # if on university
 from lib.data import get_loaders
 
-if os.path.isdir('/home/lab/glickmd1'):
+isuni = os.path.isdir('/home/lab/glickmd1')
+if isuni:
     os.environ["HF_DATASETS_CACHE"] = "/home/lab/glickmd1/.cache/huggingface/datasets"
     os.environ["CUDA_VISIBLE_DEVICES"] = str(utils.get_random_with_gpu_with_gb_free(60, 1))
 # export HF_DATASETS_CACHE="/cortex/users/danielg/.cache/huggingface/datasets"
@@ -28,10 +29,11 @@ print('# of gpus: ', torch.cuda.device_count())
 def get_llm(model, cache_dir="llm_weights"):
     model = AutoModelForCausalLM.from_pretrained(
         model,
-        torch_dtype=torch.float16,
+        torch_dtype=torch.float16 if isuni else torch.float32,
         # cache_dir=cache_dir,
         low_cpu_mem_usage=True,
-        device_map="auto"
+        device_map="auto",
+        offload_folder="./offload" if not isuni else None,
     )
 
     model.seqlen = 2048
