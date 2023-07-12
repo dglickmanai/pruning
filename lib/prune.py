@@ -21,6 +21,8 @@ def find_layers(module, layers=[nn.Linear], name='', names=[]):
     Returns:
         dict: Dictionary of layers of the given type(s) within the module.
     """
+    assert type(
+        module) is not Wrapper, 'should not call this w ith wrapper for now.. later should probably just add wrapper to layers..'
     if type(module) in layers and (not names or name.endswith(tuple(names))):
         return {name: module}
     res = {}
@@ -48,7 +50,8 @@ class Wrapper(nn.Module):
 
         self.layer_id = layer_id
         self.layer_name = layer_name
-        self.mask = None
+        # init random with mean 1 and small std.
+        self.mask = torch.nn.Parameter(torch.randn(self.layer.in_features, device=self.dev) * 0.01 + 1)
 
     def add_batch(self, inp, out):
         if len(inp.shape) == 2:
@@ -105,7 +108,7 @@ class Wrapper(nn.Module):
         average_logits = torch.sqrt(self.scaler_row)  # not necesserly need sqrt
         #
         scores = average_logits * outgoing_edges_norm  # this should be after the relu
-        self.mask = scores
+        self.mask.data = scores
         self.args = args
 
 
@@ -291,6 +294,7 @@ def prune_activations(args, model, tokenizer, dataloader, device=torch.device("c
     # passes layer by layer
     for i in range(len(layers)):
         layer = layers[i]
+        # hook model
         subset = wrap_layers(layer, names=args.weights_to_prune)
 
         if f"model.layers.{i}" in model.hf_device_map:  ## handle the case for llama-30B and llama-65B, when the device map has multiple GPUs;
@@ -298,21 +302,22 @@ def prune_activations(args, model, tokenizer, dataloader, device=torch.device("c
             inps, outs, attention_mask, position_ids = inps.to(dev), outs.to(dev), attention_mask.to(
                 dev), position_ids.to(dev)
 
-        wrapped_layers = subset
-
         for j in range(args.nsamples):
+            # forward pass to register activations
             with torch.no_grad():
                 outs[j] = layer(inps[j].unsqueeze(0), attention_mask=attention_mask, position_ids=position_ids)[0]
 
-        for x in wrapped_layers.values():
+        for x in subset.values():
             x.track = False
 
         for name in subset:
             print(f"pruning layer {i} name {name}")
+            # prepare prune metric stats
             subset[name].prune(args)
 
         for j in range(args.nsamples):
             with torch.no_grad():
+                # forward again to get next layer inputs
                 outs[j] = layer(inps[j].unsqueeze(0), attention_mask=attention_mask, position_ids=position_ids)[0]
         inps, outs = outs, inps
 
