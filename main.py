@@ -56,7 +56,7 @@ def setup():
 
 
 def get_device_and_model(args):
-    device = torch.device("cuda:0")
+    device = torch.device("cuda:0") if torch.cuda.is_available() else torch.device("cpu")
     print(f"loading llm model {args.model}")
     model = get_llm(args.model, args.cache_dir)
     model.eval()
