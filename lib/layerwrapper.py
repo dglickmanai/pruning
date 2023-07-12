@@ -1,8 +1,10 @@
 import torch
 import torch.nn as nn
 
-
 # Define WrappedGPT class
+from torch import nn as nn
+
+
 class WrappedGPT:
     """
     This class wraps a GPT layer for specific operations.
@@ -45,3 +47,81 @@ class WrappedGPT:
         if self.activation_strength_metric == "percentile":
             scaler = torch.mean(inp, dim=1) + 2 * torch.std(inp, dim=1)
         self.scaler_row += scaler ** 2 / self.nsamples
+
+
+class Wrapper(nn.Module):
+
+    def __init__(self, layer, track, layer_id=0, layer_name="none"):
+        super(Wrapper, self).__init__()
+        self.layer_name = layer_name
+        self.track = track
+        self.layer = layer
+        self.dev = self.layer.weight.device
+        self.rows = layer.weight.data.shape[0]
+        self.columns = layer.weight.data.shape[1]
+
+        self.scaler_row = torch.zeros((self.columns), device=self.dev)
+        self.scaler_out = torch.zeros((self.rows), device=self.dev)
+        self.nsamples = 0
+
+        self.layer_id = layer_id
+        self.layer_name = layer_name
+        # init random with mean 1 and small std.
+        self.mask = torch.nn.Parameter(torch.randn(self.layer.in_features, device=self.dev) * 0.01 + 1)
+
+    def add_batch(self, inp, out):
+        if len(inp.shape) == 2:
+            inp = inp.unsqueeze(0)
+        tmp = inp.shape[0]
+        if isinstance(self.layer, nn.Linear):
+            if len(inp.shape) == 3:
+                inp = inp.reshape((-1, inp.shape[-1]))
+            inp = inp.t()
+            if self.layer_name == 'q_proj':
+                out = out.squeeze(0).t()
+        else:
+            print(f'WARNGING dfiferent layer tpye {type(self.layer)}')
+            print(f'WARNGING dfiferent layer tpye {type(self.layer)}')
+            print(f'WARNGING dfiferent layer tpye {type(self.layer)}')
+
+        self.scaler_row *= self.nsamples / (self.nsamples + tmp)
+        self.scaler_out *= self.nsamples / (self.nsamples + tmp)
+
+        self.nsamples += tmp
+
+        inp = inp.type(torch.float32)
+        out = out.type(torch.float32)
+        scaler = torch.norm(inp, p=2, dim=1)
+        scaler_out = torch.norm(out, p=2, dim=1)
+
+        self.scaler_row += scaler ** 2 / self.nsamples
+        # self.scaler_out += scaler_out ** 2 / self.nsamples
+
+    def forward(self, x):
+        if not self.track:
+            sorted_mask = self.mask.sort(stable=True)[1]
+            smallest_indices = sorted_mask[:int(self.mask.shape[0] * self.args.sparsity_ratio)]
+            mask = torch.ones_like(self.mask, dtype=x.dtype)
+            mask[smallest_indices] = 0.
+
+            x = x * mask
+
+        # Put your own logic here
+        out = self.layer(x)
+
+        if self.layer_name:
+            # after q_proj, do something different to out.. but this will be when learning mask directly..
+            pass
+
+        if self.track:
+            self.add_batch(x[0].data, out.data)
+        return out
+
+    def prune(self, args):
+
+        outgoing_edges_norm = self.layer.weight.data.norm(p=1, dim=0) / self.layer.weight.data.shape[0]
+        average_logits = torch.sqrt(self.scaler_row)  # not necesserly need sqrt
+        #
+        scores = average_logits * outgoing_edges_norm  # this should be after the relu
+        self.mask.data = scores
+        self.args = args
