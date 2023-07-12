@@ -51,7 +51,7 @@ class WrappedGPT:
 
 class Wrapper(nn.Module):
 
-    def __init__(self, layer, track, layer_id=0, layer_name="none"):
+    def __init__(self, layer,args, track, layer_id=0, layer_name="none"):
         super(Wrapper, self).__init__()
         self.layer_name = layer_name
         self.track = track
@@ -108,10 +108,6 @@ class Wrapper(nn.Module):
 
         # Put your own logic here
         out = self.layer(x)
-
-        if self.layer_name:
-            # after q_proj, do something different to out.. but this will be when learning mask directly..
-            pass
 
         if self.track:
             self.add_batch(x[0].data, out.data)

@@ -29,7 +29,7 @@ def find_layers(module, layers=[nn.Linear], name='', names=[]):
     return res
 
 
-def wrap_layers(module, layers=[nn.Linear], name='', names=[]):
+def wrap_layers(module, args, layers=[nn.Linear], name='', names=[]):
     """
     Recursively wrap layers of a certain type in a module.
 
@@ -47,11 +47,11 @@ def wrap_layers(module, layers=[nn.Linear], name='', names=[]):
     for name1, child in module.named_children():
         child_name = name + '.' + name1 if name != '' else name1
         if type(child) in layers and (not names or name1.endswith(tuple(names))):
-            wrapper = Wrapper(child, layer_name=name1, track=False)
+            wrapper = Wrapper(child, args, layer_name=name1, track=False)
             setattr(module, name1, wrapper)
             ret[child_name] = wrapper
         else:
-            wrapped_names = wrap_layers(child, layers=layers, name=child_name, names=names)
+            wrapped_names = wrap_layers(child, args, layers=layers, name=child_name, names=names)
             ret.update(wrapped_names)
     return ret
 
@@ -205,6 +205,8 @@ def prune_activations(args, model, tokenizer, dataloader, device=torch.device("c
     # forwards the model to get actual activations
     with torch.no_grad():
         # returns input and output for the first layer
+        # inps is (len(dataset), seqlen,input_size).
+        # attention_mask is (seqlen,seqlen).. just "diagonal" causal attention mask(same for all inputs).
         inps, outs, attention_mask, position_ids = prepare_calibration_input(model, dataloader, device)
 
     layers = model.model.layers
@@ -212,12 +214,15 @@ def prune_activations(args, model, tokenizer, dataloader, device=torch.device("c
     for i in range(len(layers)):
         layer = layers[i]
         # hook model
-        subset = wrap_layers(layer, names=args.weights_to_prune)
-
-        prepare_pruning(args, attention_mask, i, inps, layer, model, outs, position_ids, subset)
+        subset = wrap_layers(layer, args, names=args.weights_to_prune)
+        if not args.ignore_init_masking_by_activations:
+            prepare_pruning(args, attention_mask, i, inps, layer, model, outs, position_ids, subset)
 
     model.config.use_cache = use_cache
     torch.cuda.empty_cache()
+
+    for i in range(args.mask_train_epochs):
+        print('training epoch', i)
 
 
 def prepare_pruning(args, attention_mask, i, inps, layer, model, outs, position_ids, subset):

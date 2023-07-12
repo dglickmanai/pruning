@@ -20,6 +20,8 @@ def get_args():
                         help='what weight matrixes to prune.'
                              'options are "q_proj,k_proj,v_proj,o_proj,gate_proj,down_proj,up_proj"'
                              'if none are specified, all are pruned')
+    parser.add_argument('--ignore_init_masking_by_activations', action='store_true')
+    parser.add_argument('--mask_train_epochs', type=int, default=0)
 
     parser.add_argument('--wandb_exp_name', type=str, help='Wandb experiment name', default='pruning')
     args = parser.parse_args()
