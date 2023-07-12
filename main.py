@@ -29,11 +29,11 @@ print('# of gpus: ', torch.cuda.device_count())
 def get_llm(model, cache_dir="llm_weights"):
     model = AutoModelForCausalLM.from_pretrained(
         model,
-        torch_dtype=torch.float16 if isuni else torch.float32,
+        torch_dtype=torch.float16 if isuni else None,
         # cache_dir=cache_dir,
         low_cpu_mem_usage=True,
-        device_map="auto",
-        offload_folder="./offload" if not isuni else None,
+        device_map="auto" if isuni else None,
+        # offload_folder="./offload" if not isuni else None,
     )
 
     model.seqlen = 2048
