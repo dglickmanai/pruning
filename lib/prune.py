@@ -218,11 +218,20 @@ def prune_activations(args, model, tokenizer, dataloader, device=torch.device("c
         if not args.ignore_init_masking_by_activations:
             prepare_pruning(args, attention_mask, i, inps, layer, model, outs, position_ids, subset)
 
-    model.config.use_cache = use_cache
-    torch.cuda.empty_cache()
-
+    wrapper_layers = [(module_name, module) for (module_name, module) in layer.named_modules() for layer in
+                      [*model.model.layers] if type(module) == Wrapper]
+    #p.requires_grad = False
     for i in range(args.mask_train_epochs):
         print('training epoch', i)
+        input = dataloader[0][0].to(inps.device)
+        # for j in sample.. copy code from eval loop
+        # torch.stack(
+        # consider how eval is done.. need similar format... have a look at datasets they send me
+        model(input)
+        [*model.model.layers[0].named_modules()][2]
+
+    model.config.use_cache = use_cache
+    torch.cuda.empty_cache()
 
 
 def prepare_pruning(args, attention_mask, i, inps, layer, model, outs, position_ids, subset):

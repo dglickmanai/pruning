@@ -53,6 +53,7 @@ class Wrapper(nn.Module):
 
     def __init__(self, layer,args, track, layer_id=0, layer_name="none"):
         super(Wrapper, self).__init__()
+        self.args = args
         self.layer_name = layer_name
         self.track = track
         self.layer = layer
