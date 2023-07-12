@@ -8,7 +8,8 @@ sweep_configuration = {
     'metric': {'goal': 'maximize', 'name': 'ppl'},
     'parameters':
         {
-            'prune_method': {'values': ['activations']},
+            'prune_method': {'values': ['wanda']},
+            'sparsity_type':{ 'values':['2:4']},
             'weights_to_prune': {
                 # 'values': [[], ['q_proj'], ['k_proj'], ['v_proj'], ['o_proj'], ['gate_proj'], ['down_proj'],
                 #            ['up_proj']]
