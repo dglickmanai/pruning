@@ -29,6 +29,11 @@ def find_layers(module, layers=[nn.Linear], name='', names=[]):
     return res
 
 
+def wrap_model(model, args, names):
+    layers = model.model.layers
+    return [(layer, wrap_layers(layer, args, names)) for layer in layers]
+
+
 def wrap_layers(module, args, layers=[nn.Linear], name='', names=[]):
     """
     Recursively wrap layers of a certain type in a module.
@@ -199,36 +204,73 @@ def prune_wanda(args, model, tokenizer, device=torch.device("cuda:0"), prune_n=0
 
 
 def prune_activations(args, model, tokenizer, dataloader, device=torch.device("cuda:0")):
+    wrapped_layers = wrap_model(model, args, names=args.weights_to_prune)
+
     use_cache = model.config.use_cache
     model.config.use_cache = False
 
-    # forwards the model to get actual activations
+    # pruning stats collection
+    #############
     with torch.no_grad():
         # returns input and output for the first layer
         # inps is (len(dataset), seqlen,input_size).
         # attention_mask is (seqlen,seqlen).. just "diagonal" causal attention mask(same for all inputs).
         inps, outs, attention_mask, position_ids = prepare_calibration_input(model, dataloader, device)
 
-    layers = model.model.layers
     # passes layer by layer
-    for i in range(len(layers)):
-        layer = layers[i]
+    for i in range(len(wrapped_layers)):
+        layer, subset = wrapped_layers[i]
         # hook model
-        subset = wrap_layers(layer, args, names=args.weights_to_prune)
+        # subset = wrap_layers(layer, args, names=args.weights_to_prune)
         if not args.ignore_init_masking_by_activations:
             prepare_pruning(args, attention_mask, i, inps, layer, model, outs, position_ids, subset)
+    ############## pruning stats ends
 
-    wrapper_layers = [(module_name, module) for (module_name, module) in layer.named_modules() for layer in
-                      [*model.model.layers] if type(module) == Wrapper]
-    # p.requires_grad = False
-    for i in range(args.mask_train_epochs):
-        print('training epoch', i)
-        input = dataloader[0][0].to(inps.device)
-        # for j in sample.. copy code from eval loop
-        # torch.stack(
-        # consider how eval is done.. need similar format... have a look at datasets they send me
-        model(input)
-        [*model.model.layers[0].named_modules()][2]
+    if args.mask_train_epochs > 0:
+        for param in model.parameters():
+            param.requires_grad = False
+
+        wrapper_layers = [(module_name, module) for lay in
+                          [*model.model.layers] for (module_name, module) in lay.named_modules() if
+                          type(module) == Wrapper]
+        # wrapper_layers = [(module_name, module) for (module_name, module) in layer.named_modules() for lay in
+        # [*model.model.layers] if type(module) == Wrapper]
+
+        params_to_train = []
+        for (module_name, module) in wrapper_layers:
+            module.mask.requires_grad = True
+            params_to_train.append(module.mask)
+        optimizer = torch.optim.Adam(params_to_train, lr=args.mask_train_lr)
+
+        train_loader = torch.utils.data.DataLoader([x[0] for x in dataloader], batch_size=args.mask_train_bs,
+                                                   shuffle=True)
+        bs = args.mask_train_bs
+        nsamples = len(dataloader)
+        for i in range(args.mask_train_epochs):
+            # List to store negative log likelihoods
+            print(f"nsamples {nsamples}")
+
+            # Loop through each batch
+            for batch in train_loader:
+                # Prepare inputs and move to device
+
+                # todo is it ok with no mask? maybe mask is infered for lanuge modeling
+                lm_logits = model(batch).logits
+
+                # Shift logits and labels for next token prediction
+                shift_logits = lm_logits[:, :, :-1]
+                shift_labels = batch[:, :, 1:]
+
+                # Compute loss
+                loss_fct = nn.CrossEntropyLoss()
+                loss = loss_fct(shift_logits.reshape(-1, shift_logits.size(-1)), shift_labels.reshape(-1))
+
+                # Backward pass
+                optimizer.zero_grad()
+                loss.backward()
+                optimizer.step()
+
+                print(f"loss {loss.item()}")
 
     model.config.use_cache = use_cache
     torch.cuda.empty_cache()

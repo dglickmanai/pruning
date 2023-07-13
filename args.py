@@ -22,6 +22,8 @@ def get_args():
                              'if none are specified, all are pruned')
     parser.add_argument('--ignore_init_masking_by_activations', action='store_true')
     parser.add_argument('--mask_train_epochs', type=int, default=0)
+    parser.add_argument('--mask_train_lr', type=float, default=1e-3)
+    parser.add_argument('--mask_train_bs', type=int, default=8)
 
     parser.add_argument('--wandb_exp_name', type=str, help='Wandb experiment name', default='pruning')
     args = parser.parse_args()
