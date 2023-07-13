@@ -62,7 +62,7 @@ def prepare_calibration_input(model, dataloader, device):
     layers = model.model.layers
 
     # dev = model.hf_device_map["model.embed_tokens"]
-    if "model.embed_tokens" in model.hf_device_map:
+    if hasattr(model, 'hf_device_map') and "model.embed_tokens" in model.hf_device_map:
         device = model.hf_device_map["model.embed_tokens"]
 
     dtype = next(iter(model.parameters())).dtype
@@ -220,7 +220,7 @@ def prune_activations(args, model, tokenizer, dataloader, device=torch.device("c
 
     wrapper_layers = [(module_name, module) for (module_name, module) in layer.named_modules() for layer in
                       [*model.model.layers] if type(module) == Wrapper]
-    #p.requires_grad = False
+    # p.requires_grad = False
     for i in range(args.mask_train_epochs):
         print('training epoch', i)
         input = dataloader[0][0].to(inps.device)

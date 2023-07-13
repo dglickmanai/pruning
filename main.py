@@ -26,11 +26,10 @@ print('accelerate', version('accelerate'))
 print('# of gpus: ', torch.cuda.device_count())
 
 
-def get_llm(model, cache_dir="llm_weights"):
+def get_llm(model):
     model = AutoModelForCausalLM.from_pretrained(
         model,
         torch_dtype=torch.float16 if isuni else None,
-        # cache_dir=cache_dir,
         low_cpu_mem_usage=True,
         device_map="auto" if isuni else None,
         # offload_folder="./offload" if not isuni else None,
@@ -58,7 +57,7 @@ def setup():
 def get_device_and_model(args):
     device = torch.device("cuda:0") if torch.cuda.is_available() else torch.device("cpu")
     print(f"loading llm model {args.model}")
-    model = get_llm(args.model, args.cache_dir)
+    model = get_llm(args.model)
     model.eval()
     if "30b" in args.model or "65b" in args.model:  # for 30b and 65b we use device_map to load onto multiple A6000 GPUs, thus the processing here.
         device = model.hf_device_map["lm_head"]
