@@ -1,5 +1,7 @@
 import torch
 import torch.nn as nn
+
+from .eval import eval_ppl_wikitext
 from .sparsegpt import SparseGPT
 from .layerwrapper import WrappedGPT, Wrapper
 from .data import get_loaders
@@ -52,7 +54,7 @@ def wrap_layers(module, args, layers=[nn.Linear], name='', names=[]):
     for name1, child in module.named_children():
         child_name = name + '.' + name1 if name != '' else name1
         if type(child) in layers and (not names or name1.endswith(tuple(names))):
-            wrapper = Wrapper(child, args, layer_name=name1, track=False)
+            wrapper = Wrapper(child, args, layer_name=name1, track=True)
             setattr(module, name1, wrapper)
             ret[child_name] = wrapper
         else:
@@ -221,9 +223,33 @@ def prune_activations(args, model, tokenizer, dataloader, device=torch.device("c
     for i in range(len(wrapped_layers)):
         layer, subset = wrapped_layers[i]
         # hook model
-        # subset = wrap_layers(layer, args, names=args.weights_to_prune)
         if not args.ignore_init_masking_by_activations:
-            prepare_pruning(args, attention_mask, i, inps, layer, model, outs, position_ids, subset)
+            if f"model.layers.{i}" in model.hf_device_map:  ## handle the case for llama-30B and llama-65B, when the device map has multiple GPUs;
+                dev = model.hf_device_map[f"model.layers.{i}"]
+                inps, outs, attention_mask, position_ids = inps.to(dev), outs.to(dev), attention_mask.to(
+                    dev), position_ids.to(dev)
+
+            for x in subset.values():
+                x.track = True
+
+            for j in range(args.nsamples):
+                # forward pass to register activations
+                with torch.no_grad():
+                    outs[j] = layer(inps[j].unsqueeze(0), attention_mask=attention_mask, position_ids=position_ids)[0]
+
+            for x in subset.values():
+                x.track = False
+
+            for name in subset:
+                print(f"pruning layer {i} name {name}")
+                # prepare prune metric stats
+                subset[name].prune(args)
+
+            for j in range(args.nsamples):
+                with torch.no_grad():
+                    # forward again to get next layer inputs
+                    outs[j] = layer(inps[j].unsqueeze(0), attention_mask=attention_mask, position_ids=position_ids)[0]
+            inps, outs = outs, inps
     ############## pruning stats ends
 
     if args.mask_train_epochs > 0:
@@ -233,8 +259,6 @@ def prune_activations(args, model, tokenizer, dataloader, device=torch.device("c
         wrapper_layers = [(module_name, module) for lay in
                           [*model.model.layers] for (module_name, module) in lay.named_modules() if
                           type(module) == Wrapper]
-        # wrapper_layers = [(module_name, module) for (module_name, module) in layer.named_modules() for lay in
-        # [*model.model.layers] if type(module) == Wrapper]
 
         params_to_train = []
         for (module_name, module) in wrapper_layers:
@@ -246,6 +270,10 @@ def prune_activations(args, model, tokenizer, dataloader, device=torch.device("c
                                                    shuffle=True)
         bs = args.mask_train_bs
         nsamples = len(dataloader)
+
+        _, testloader = get_loaders(
+            "wikitext2", seed=0, seqlen=model.seqlen, tokenizer=tokenizer
+        )
         for i in range(args.mask_train_epochs):
             # List to store negative log likelihoods
             print(f"nsamples {nsamples}")
@@ -271,17 +299,13 @@ def prune_activations(args, model, tokenizer, dataloader, device=torch.device("c
                 loss.backward()
                 optimizer.step()
 
-                print(f"loss {loss.item()}")
+                print(f"train loss {loss.item()}")
 
-                # THIS SHOULD BE DONE ONCE _ NOT EVERYT LOOP
-                # _, testloader = get_loaders(
-                #     "wikitext2", seed=0, seqlen=model.seqlen, tokenizer=tokenizer
-                # )
                 #
                 # # Evaluate ppl in no grad context to avoid updating the model
-                # with torch.no_grad():
-                #     ppl = eval_ppl_wikitext(model, testloader, 8, device)
-                # return ppl
+            with torch.no_grad():
+                ppl = eval_ppl_wikitext(model, testloader, 8, device)
+                print(f"wiki ppl {ppl}")
 
     model.config.use_cache = use_cache
     torch.cuda.empty_cache()

@@ -51,7 +51,7 @@ class WrappedGPT:
 
 class Wrapper(nn.Module):
 
-    def __init__(self, layer,args, track, layer_id=0, layer_name="none"):
+    def __init__(self, layer, args, track, layer_id=0, layer_name="none"):
         super(Wrapper, self).__init__()
         self.args = args
         self.layer_name = layer_name
@@ -74,16 +74,12 @@ class Wrapper(nn.Module):
         if len(inp.shape) == 2:
             inp = inp.unsqueeze(0)
         tmp = inp.shape[0]
-        if isinstance(self.layer, nn.Linear):
-            if len(inp.shape) == 3:
-                inp = inp.reshape((-1, inp.shape[-1]))
-            inp = inp.t()
-            if self.layer_name == 'q_proj':
-                out = out.squeeze(0).t()
-        else:
-            print(f'WARNGING dfiferent layer tpye {type(self.layer)}')
-            print(f'WARNGING dfiferent layer tpye {type(self.layer)}')
-            print(f'WARNGING dfiferent layer tpye {type(self.layer)}')
+        assert isinstance(self.layer, nn.Linear)
+        if len(inp.shape) == 3:
+            inp = inp.reshape((-1, inp.shape[-1]))
+        inp = inp.t()
+        if self.layer_name == 'q_proj':
+            out = out.squeeze(0).t()
 
         self.scaler_row *= self.nsamples / (self.nsamples + tmp)
         self.scaler_out *= self.nsamples / (self.nsamples + tmp)
