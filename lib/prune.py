@@ -31,7 +31,7 @@ def find_layers(module, layers=[nn.Linear], name='', names=[]):
 
 def wrap_model(model, args, names):
     layers = model.model.layers
-    return [(layer, wrap_layers(layer, args, names)) for layer in layers]
+    return [(layer, wrap_layers(layer, args, names=names)) for layer in layers]
 
 
 def wrap_layers(module, args, layers=[nn.Linear], name='', names=[]):
@@ -253,13 +253,14 @@ def prune_activations(args, model, tokenizer, dataloader, device=torch.device("c
             # Loop through each batch
             for batch in train_loader:
                 # Prepare inputs and move to device
+                batch = batch.squeeze(1).to(model.device)
 
                 # todo is it ok with no mask? maybe mask is infered for lanuge modeling
                 lm_logits = model(batch).logits
 
                 # Shift logits and labels for next token prediction
-                shift_logits = lm_logits[:, :, :-1]
-                shift_labels = batch[:, :, 1:]
+                shift_logits = lm_logits[:, :-1, :]
+                shift_labels = batch[:, 1:]
 
                 # Compute loss
                 loss_fct = nn.CrossEntropyLoss()
@@ -271,6 +272,16 @@ def prune_activations(args, model, tokenizer, dataloader, device=torch.device("c
                 optimizer.step()
 
                 print(f"loss {loss.item()}")
+
+                # THIS SHOULD BE DONE ONCE _ NOT EVERYT LOOP
+                # _, testloader = get_loaders(
+                #     "wikitext2", seed=0, seqlen=model.seqlen, tokenizer=tokenizer
+                # )
+                #
+                # # Evaluate ppl in no grad context to avoid updating the model
+                # with torch.no_grad():
+                #     ppl = eval_ppl_wikitext(model, testloader, 8, device)
+                # return ppl
 
     model.config.use_cache = use_cache
     torch.cuda.empty_cache()
