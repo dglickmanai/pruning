@@ -8,7 +8,7 @@ from lib.data import get_loaders
 isuni = os.path.isdir('/home/lab/glickmd1')
 if isuni:
     os.environ["HF_DATASETS_CACHE"] = "/home/lab/glickmd1/.cache/huggingface/datasets"
-    os.environ["CUDA_VISIBLE_DEVICES"] = str(utils.get_random_with_gpu_with_gb_free(60, 1))
+    os.environ["CUDA_VISIBLE_DEVICES"] = str(utils.get_random_with_gpu_with_gb_free(30, 2))
 # export HF_DATASETS_CACHE="/cortex/users/danielg/.cache/huggingface/datasets"
 # export TRANSFORMERS_CACHE="/cortex/users/danielg/.cache/huggingface/transformers"
 # os.environ["CUDA_VISIBLE_DEVICES"] = str(gpu)
