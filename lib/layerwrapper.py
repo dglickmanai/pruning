@@ -49,6 +49,23 @@ class WrappedGPT:
         self.scaler_row += scaler ** 2 / self.nsamples
 
 
+class Binarize(torch.autograd.Function):
+    @staticmethod
+    def forward(ctx, input, sparsity_ratio):
+        sorted_mask = input.sort(stable=True)[1]
+        smallest_indices = sorted_mask[:int(input.shape[0] * sparsity_ratio)]
+        mask = torch.ones_like(input, dtype=input.dtype)
+        mask[smallest_indices] = 0.
+        #todo can try have the gradient be mask*input
+        ctx.save_for_backward(mask)
+        return mask
+
+    @staticmethod
+    def backward(ctx, grad_output):
+        mask, = ctx.saved_tensors
+        return grad_output * mask, None
+
+
 class Wrapper(nn.Module):
 
     def __init__(self, layer, args, track, layer_id=0, layer_name="none"):
@@ -96,11 +113,7 @@ class Wrapper(nn.Module):
 
     def forward(self, x):
         if not self.track:
-            sorted_mask = self.mask.sort(stable=True)[1]
-            smallest_indices = sorted_mask[:int(self.mask.shape[0] * self.args.sparsity_ratio)]
-            mask = torch.ones_like(self.mask, dtype=x.dtype)
-            mask[smallest_indices] = 0.
-
+            mask = Binarize.apply(self.mask, self.args.sparsity_ratio).to(x)
             x = x * mask
 
         # Put your own logic here

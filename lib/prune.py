@@ -54,7 +54,7 @@ def wrap_layers(module, args, layers=[nn.Linear], name='', names=[]):
     for name1, child in module.named_children():
         child_name = name + '.' + name1 if name != '' else name1
         if type(child) in layers and (not names or name1.endswith(tuple(names))):
-            wrapper = Wrapper(child, args, layer_name=name1, track=True)
+            wrapper = Wrapper(child, args, layer_name=name1, track=False)
             setattr(module, name1, wrapper)
             ret[child_name] = wrapper
         else:
@@ -252,6 +252,9 @@ def prune_activations(args, model, tokenizer, dataloader, device=torch.device("c
             inps, outs = outs, inps
     ############## pruning stats ends
 
+    model.config.use_cache = use_cache
+    torch.cuda.empty_cache()
+
     if args.mask_train_epochs > 0:
         for param in model.parameters():
             param.requires_grad = False
@@ -264,7 +267,9 @@ def prune_activations(args, model, tokenizer, dataloader, device=torch.device("c
         for (module_name, module) in wrapper_layers:
             module.mask.requires_grad = True
             params_to_train.append(module.mask)
-        optimizer = torch.optim.Adam(params_to_train, lr=args.mask_train_lr)
+        # optimizer = torch.optim.Adam(params_to_train, lr=args.mask_train_lr)
+        # TODO: ADAM?
+        optimizer = torch.optim.SGD(params_to_train, lr=args.mask_train_lr)
 
         train_loader = torch.utils.data.DataLoader([x[0] for x in dataloader], batch_size=args.mask_train_bs,
                                                    shuffle=True)
@@ -283,7 +288,6 @@ def prune_activations(args, model, tokenizer, dataloader, device=torch.device("c
                 # Prepare inputs and move to device
                 batch = batch.squeeze(1).to(model.device)
 
-                # todo is it ok with no mask? maybe mask is infered for lanuge modeling
                 lm_logits = model(batch).logits
 
                 # Shift logits and labels for next token prediction
@@ -306,37 +310,6 @@ def prune_activations(args, model, tokenizer, dataloader, device=torch.device("c
             with torch.no_grad():
                 ppl = eval_ppl_wikitext(model, testloader, 8, device)
                 print(f"wiki ppl {ppl}")
-
-    model.config.use_cache = use_cache
-    torch.cuda.empty_cache()
-
-
-def prepare_pruning(args, attention_mask, i, inps, layer, model, outs, position_ids, subset):
-    if f"model.layers.{i}" in model.hf_device_map:  ## handle the case for llama-30B and llama-65B, when the device map has multiple GPUs;
-        dev = model.hf_device_map[f"model.layers.{i}"]
-        inps, outs, attention_mask, position_ids = inps.to(dev), outs.to(dev), attention_mask.to(
-            dev), position_ids.to(dev)
-
-    for x in subset.values():
-        x.track = True
-
-    for j in range(args.nsamples):
-        # forward pass to register activations
-        with torch.no_grad():
-            outs[j] = layer(inps[j].unsqueeze(0), attention_mask=attention_mask, position_ids=position_ids)[0]
-
-    for x in subset.values():
-        x.track = False
-
-    for name in subset:
-        print(f"pruning layer {i} name {name}")
-        # prepare prune metric stats
-        subset[name].prune(args)
-    for j in range(args.nsamples):
-        with torch.no_grad():
-            # forward again to get next layer inputs
-            outs[j] = layer(inps[j].unsqueeze(0), attention_mask=attention_mask, position_ids=position_ids)[0]
-    inps, outs = outs, inps
 
 
 @torch.no_grad()
