@@ -1,5 +1,6 @@
 import torch
 import torch.nn as nn
+from tqdm import tqdm
 
 from .eval import eval_ppl_wikitext
 from .sparsegpt import SparseGPT
@@ -275,13 +276,13 @@ def train_mask(args, dataloader, device, model, tokenizer):
     _, testloader = get_loaders(
         "wikitext2", seed=0, seqlen=model.seqlen, tokenizer=tokenizer
     )
-    for i in range(args.mask_train_epochs):
+    for i in tqdm(range(args.mask_train_epochs)):
         # List to store negative log likelihoods
         print(f"nsamples {nsamples}")
 
         # Loop through each batch
         losses = []
-        for batch in train_loader:
+        for batch in tqdm(train_loader):
             # Prepare inputs and move to device
             batch = batch.squeeze(1).to(model.device)
 
