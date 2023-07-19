@@ -1,7 +1,7 @@
 import torch
 import torch.nn as nn
 from tqdm import tqdm
-
+import time
 from .eval import eval_ppl_wikitext
 from .sparsegpt import SparseGPT
 from .layerwrapper import WrappedGPT, Wrapper
@@ -304,13 +304,14 @@ def train_mask(args, dataloader, device, model, tokenizer):
             losses.append(loss.item())
             # print(f"train loss {loss.item()}")
 
-            #
-            # # Evaluate ppl in no grad context to avoid updating the model
         avg_loss = sum(losses) / len(losses)
         print(f"train loss {avg_loss}")
+
+        # time the operation
         with torch.no_grad():
+            start = time.time()
             ppl = eval_ppl_wikitext(model, testloader, 8, device)
-            print(f"wiki ppl {ppl}")
+            print(f"wiki ppl {ppl}. took {time.time() - start} seconds")
 
         if args.wandb_exp_name is not None and args.wandb_exp_name != "":
             import wandb
