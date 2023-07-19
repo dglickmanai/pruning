@@ -280,6 +280,7 @@ def train_mask(args, dataloader, device, model, tokenizer):
         print(f"nsamples {nsamples}")
 
         # Loop through each batch
+        losses = []
         for batch in train_loader:
             # Prepare inputs and move to device
             batch = batch.squeeze(1).to(model.device)
@@ -299,13 +300,20 @@ def train_mask(args, dataloader, device, model, tokenizer):
             loss.backward()
             optimizer.step()
 
-            print(f"train loss {loss.item()}")
+            losses.append(loss.item())
+            # print(f"train loss {loss.item()}")
 
             #
             # # Evaluate ppl in no grad context to avoid updating the model
+        avg_loss = sum(losses) / len(losses)
+        print(f"train loss {avg_loss}")
         with torch.no_grad():
             ppl = eval_ppl_wikitext(model, testloader, 8, device)
             print(f"wiki ppl {ppl}")
+
+        if args.wandb_exp_name is not None and args.wandb_exp_name != "":
+            import wandb
+            wandb.log({"train_loss": avg_loss, "wiki_ppl": ppl})
 
 
 @torch.no_grad()
