@@ -56,7 +56,45 @@ class Binarize(torch.autograd.Function):
         smallest_indices = sorted_mask[:int(input.shape[0] * sparsity_ratio)]
         mask = torch.ones_like(input, dtype=input.dtype)
         mask[smallest_indices] = 0.
-        #todo can try have the gradient be mask*input
+        # todo can try have the gradient be mask * input
+        ctx.save_for_backward(mask)
+        return mask
+
+    @staticmethod
+    def backward(ctx, grad_output):
+        mask, = ctx.saved_tensors
+        # todo maybe just return grad_output??
+        return grad_output * mask, None
+
+
+class Binarize_ST(torch.autograd.Function):
+    @staticmethod
+    def forward(ctx, input, sparsity_ratio):
+        sorted_mask = input.sort(stable=True)[1]
+        smallest_indices = sorted_mask[:int(input.shape[0] * sparsity_ratio)]
+        mask = torch.ones_like(input, dtype=input.dtype)
+        mask[smallest_indices] = 0.
+        return mask
+
+    @staticmethod
+    def backward(ctx, grad_output):
+        return grad_output.clone(), None
+
+
+class Binarize_Sigmoid(torch.autograd.Function):
+    @staticmethod
+    def forward(ctx, input, sparsity_ratio):
+        return torch.bernoulli(torch.sigmoid(input))
+
+    @staticmethod
+    def backward(ctx, grad_output):
+        return grad_output, None
+
+
+class Binarize_Sigmoid_ST(torch.autograd.Function):
+    @staticmethod
+    def forward(ctx, input, sparsity_ratio):
+        mask = torch.bernoulli(torch.sigmoid(input))
         ctx.save_for_backward(mask)
         return mask
 
@@ -113,7 +151,12 @@ class Wrapper(nn.Module):
 
     def forward(self, x):
         if not self.track:
-            mask = Binarize.apply(self.mask, self.args.sparsity_ratio).to(x)
+            if self.args.mask_binarizer == 'binarize':
+                mask_binarizer = Binarize.apply
+            elif self.args.mask_binarizer == 'binarize_st':
+                mask_binarizer = Binarize_ST.apply
+
+            mask = mask_binarizer(self.mask, self.args.sparsity_ratio).to(x)
             x = x * mask
 
         # Put your own logic here
