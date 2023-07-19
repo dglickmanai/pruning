@@ -253,63 +253,59 @@ def prune_activations(args, model, tokenizer, dataloader, device=torch.device("c
     ############## pruning stats ends
 
     model.config.use_cache = use_cache
-    torch.cuda.empty_cache()
 
-    if args.mask_train_epochs > 0:
-        for param in model.parameters():
-            param.requires_grad = False
 
-        wrapper_layers = [(module_name, module) for lay in
-                          [*model.model.layers] for (module_name, module) in lay.named_modules() if
-                          type(module) == Wrapper]
+def train_mask(args, dataloader, device, model, tokenizer):
+    for param in model.parameters():
+        param.requires_grad = False
+    wrapper_layers = [(module_name, module) for lay in
+                      [*model.model.layers] for (module_name, module) in lay.named_modules() if
+                      type(module) == Wrapper]
+    params_to_train = []
+    for (module_name, module) in wrapper_layers:
+        module.mask.requires_grad = True
+        params_to_train.append(module.mask)
+    # optimizer = torch.optim.Adam(params_to_train, lr=args.mask_train_lr)
+    # TODO: ADAM?
+    optimizer = torch.optim.SGD(params_to_train, lr=args.mask_train_lr)
+    train_loader = torch.utils.data.DataLoader([x[0] for x in dataloader], batch_size=args.mask_train_bs,
+                                               shuffle=True)
+    bs = args.mask_train_bs
+    nsamples = len(dataloader)
+    _, testloader = get_loaders(
+        "wikitext2", seed=0, seqlen=model.seqlen, tokenizer=tokenizer
+    )
+    for i in range(args.mask_train_epochs):
+        # List to store negative log likelihoods
+        print(f"nsamples {nsamples}")
 
-        params_to_train = []
-        for (module_name, module) in wrapper_layers:
-            module.mask.requires_grad = True
-            params_to_train.append(module.mask)
-        # optimizer = torch.optim.Adam(params_to_train, lr=args.mask_train_lr)
-        # TODO: ADAM?
-        optimizer = torch.optim.SGD(params_to_train, lr=args.mask_train_lr)
+        # Loop through each batch
+        for batch in train_loader:
+            # Prepare inputs and move to device
+            batch = batch.squeeze(1).to(model.device)
 
-        train_loader = torch.utils.data.DataLoader([x[0] for x in dataloader], batch_size=args.mask_train_bs,
-                                                   shuffle=True)
-        bs = args.mask_train_bs
-        nsamples = len(dataloader)
+            lm_logits = model(batch).logits
 
-        _, testloader = get_loaders(
-            "wikitext2", seed=0, seqlen=model.seqlen, tokenizer=tokenizer
-        )
-        for i in range(args.mask_train_epochs):
-            # List to store negative log likelihoods
-            print(f"nsamples {nsamples}")
+            # Shift logits and labels for next token prediction
+            shift_logits = lm_logits[:, :-1, :]
+            shift_labels = batch[:, 1:]
 
-            # Loop through each batch
-            for batch in train_loader:
-                # Prepare inputs and move to device
-                batch = batch.squeeze(1).to(model.device)
+            # Compute loss
+            loss_fct = nn.CrossEntropyLoss()
+            loss = loss_fct(shift_logits.reshape(-1, shift_logits.size(-1)), shift_labels.reshape(-1))
 
-                lm_logits = model(batch).logits
+            # Backward pass
+            optimizer.zero_grad()
+            loss.backward()
+            optimizer.step()
 
-                # Shift logits and labels for next token prediction
-                shift_logits = lm_logits[:, :-1, :]
-                shift_labels = batch[:, 1:]
+            print(f"train loss {loss.item()}")
 
-                # Compute loss
-                loss_fct = nn.CrossEntropyLoss()
-                loss = loss_fct(shift_logits.reshape(-1, shift_logits.size(-1)), shift_labels.reshape(-1))
-
-                # Backward pass
-                optimizer.zero_grad()
-                loss.backward()
-                optimizer.step()
-
-                print(f"train loss {loss.item()}")
-
-                #
-                # # Evaluate ppl in no grad context to avoid updating the model
-            with torch.no_grad():
-                ppl = eval_ppl_wikitext(model, testloader, 8, device)
-                print(f"wiki ppl {ppl}")
+            #
+            # # Evaluate ppl in no grad context to avoid updating the model
+        with torch.no_grad():
+            ppl = eval_ppl_wikitext(model, testloader, 8, device)
+            print(f"wiki ppl {ppl}")
 
 
 @torch.no_grad()

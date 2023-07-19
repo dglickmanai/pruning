@@ -8,7 +8,7 @@ from lib.data import get_loaders
 isuni = os.path.isdir('/home/lab/glickmd1')
 if isuni:
     os.environ["HF_DATASETS_CACHE"] = "/home/lab/glickmd1/.cache/huggingface/datasets"
-    os.environ["CUDA_VISIBLE_DEVICES"] = str(utils.get_random_with_gpu_with_gb_free(20, 8))
+    # os.environ["CUDA_VISIBLE_DEVICES"] = str(utils.get_random_with_gpu_with_gb_free(70, 1))
 # export HF_DATASETS_CACHE="/cortex/users/danielg/.cache/huggingface/datasets"
 # export TRANSFORMERS_CACHE="/cortex/users/danielg/.cache/huggingface/transformers"
 # os.environ["CUDA_VISIBLE_DEVICES"] = str(gpu)
@@ -17,7 +17,7 @@ import torch
 from transformers import AutoTokenizer, AutoModelForCausalLM
 from importlib.metadata import version
 
-from lib.prune import prune_wanda, prune_magnitude, prune_sparsegpt, check_sparsity, prune_activations
+from lib.prune import prune_wanda, prune_magnitude, prune_sparsegpt, check_sparsity, prune_activations, train_mask
 from lib.eval import eval_ppl
 
 print('torch', version('torch'))
@@ -30,6 +30,7 @@ def get_llm(model, max_memory):
     model = AutoModelForCausalLM.from_pretrained(
         model,
         torch_dtype=torch.float16 if isuni else None,
+        # load_in_8bit=True,
         low_cpu_mem_usage=True,
         device_map="auto" if isuni else None,
         # offload_folder="./offload" if not isuni else None,
@@ -94,6 +95,9 @@ def pruning_experiment(args, dataloader, tokenizer):
             prune_sparsegpt(args, model, tokenizer, device, prune_n=prune_n, prune_m=prune_m)
         elif args.prune_method == "activations":
             prune_activations(args, model, tokenizer, dataloader, device)
+            torch.cuda.empty_cache()
+            if args.mask_train_epochs > 0:
+                train_mask(args, dataloader, device, model, tokenizer)
     ################################################################
     print("*" * 30)
     sparsity_ratio = check_sparsity(model, args) if not args.prune_method == "activations" else args.sparsity_ratio
