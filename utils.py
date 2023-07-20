@@ -3,11 +3,22 @@ import os
 import random
 
 
-def get_gpu_memory():
+def get_gpu_memory(top=0):
+    def top_values(d):
+        # Sort the dictionary by values in descending order
+        sorted_dict = dict(sorted(d.items(), key=lambda item: item[1], reverse=True))
+
+        # Create a new dictionary containing only the first 2 items
+        top_two_dict = dict(list(sorted_dict.items())[:top])
+
+        return top_two_dict
+
     lines = os.popen('nvidia-smi -q -d Memory |grep -A5 GPU|grep Free').readlines()
 
     memory_available = [int(x.split()[2]) for x in lines]
     gpus = {index: mb for index, mb in enumerate(memory_available)}
+    if top:
+        gpus = top_values(gpus)
     return gpus
 
 
