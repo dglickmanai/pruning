@@ -307,15 +307,17 @@ def train_mask(args, dataloader, device, model, tokenizer):
         avg_loss = sum(losses) / len(losses)
         print(f"train loss {avg_loss}")
 
-        # time the operation
-        with torch.no_grad():
-            start = time.time()
-            ppl = eval_ppl_wikitext(model, testloader, 8, device)
-            print(f"wiki ppl {ppl}. took {time.time() - start} seconds")
+        stats = {'train_loss': avg_loss}
+        if i % 5 == 0:
+            with torch.no_grad():
+                start = time.time()
+                ppl = eval_ppl_wikitext(model, testloader, 8, device)
+                print(f"wiki ppl {ppl}. took {time.time() - start} seconds")
+                stats['wiki_ppl'] = ppl
 
         if args.wandb_exp_name is not None and args.wandb_exp_name != "":
             import wandb
-            wandb.log({"train_loss": avg_loss, "wiki_ppl": ppl})
+            wandb.log(stats)
 
 
 @torch.no_grad()
