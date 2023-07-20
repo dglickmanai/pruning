@@ -53,17 +53,16 @@ class Binarize(torch.autograd.Function):
     @staticmethod
     def forward(ctx, input, sparsity_ratio):
         sorted_mask = input.sort(stable=True)[1]
+
         smallest_indices = sorted_mask[:int(input.shape[0] * sparsity_ratio)]
         mask = torch.ones_like(input, dtype=input.dtype)
         mask[smallest_indices] = 0.
-        # todo can try have the gradient be mask * input
         ctx.save_for_backward(mask)
         return mask
 
     @staticmethod
     def backward(ctx, grad_output):
         mask, = ctx.saved_tensors
-        # todo maybe just return grad_output??
         return grad_output * mask, None
 
 
