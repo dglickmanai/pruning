@@ -6,9 +6,12 @@ from args import get_args
 from lib.data import get_loaders
 
 isuni = os.path.isdir('/home/lab/glickmd1')
+num_device = 6
 if isuni:
     os.environ["HF_DATASETS_CACHE"] = "/home/lab/glickmd1/.cache/huggingface/datasets"
-    # os.environ["CUDA_VISIBLE_DEVICES"] = str(utils.get_random_with_gpu_with_gb_free(70, 1))
+    # os.environ["CUDA_VISIBLE_DEVICES"] = str(utils.get_random_with_gpu_with_gb_free(70, num_device))
+    # cpu for testing
+    # os.environ["CUDA_VISIBLE_DEVICES"] = str(utils.get_random_with_gpu_with_gb_free(1, 0))
 # export HF_DATASETS_CACHE="/cortex/users/danielg/.cache/huggingface/datasets"
 # export TRANSFORMERS_CACHE="/cortex/users/danielg/.cache/huggingface/transformers"
 # os.environ["CUDA_VISIBLE_DEVICES"] = str(gpu)
@@ -34,7 +37,7 @@ def get_llm(model, max_memory):
         low_cpu_mem_usage=True,
         device_map="auto" if isuni else None,
         # offload_folder="./offload" if not isuni else None,
-        max_memory=max_memory
+        max_memory=max_memory if torch.cuda.is_available() else None,
     )
 
     model.seqlen = 2048
@@ -57,10 +60,13 @@ def setup():
 
 
 def get_device_and_model(args):
-    device = torch.device("cuda:0") if torch.cuda.is_available() else torch.device("cpu")
-    print(f"loading llm model {args.model}")
-    max_memory = {x: f'{(y // 1000 - 3)}GB' for x, y in utils.get_gpu_memory().items()}
+    gpus = utils.get_gpu_memory(num_device)
+    gpu_num = [*gpus.keys()][0]
 
+    device = torch.device(f"cuda:{gpu_num}") if torch.cuda.is_available() else torch.device("cpu")
+    print(f"loading llm model {args.model}")
+    max_memory = {x: f'{(y // 1024 - 16)}GB' for x, y in gpus.items()}
+    max_memory['cpu'] = '40GB'
     model = get_llm(args.model, max_memory)
     model.eval()
     if "30b" in args.model or "65b" in args.model:  # for 30b and 65b we use device_map to load onto multiple A6000 GPUs, thus the processing here.
