@@ -266,8 +266,8 @@ def train_mask(args, dataloader, device, model, tokenizer):
     for (module_name, module) in wrapper_layers:
         module.mask.requires_grad = True
         params_to_train.append(module.mask)
-    optimizer = torch.optim.Adam(params_to_train, lr=args.mask_train_lr)
-    # optimizer = torch.optim.SGD(params_to_train, lr=args.mask_train_lr)
+    # optimizer = torch.optim.Adam(params_to_train, lr=args.mask_train_lr)
+    optimizer = torch.optim.SGD(params_to_train, lr=args.mask_train_lr)
     train_loader = torch.utils.data.DataLoader([x[0] for x in dataloader], batch_size=args.mask_train_bs,
                                                shuffle=True)
     bs = args.mask_train_bs
