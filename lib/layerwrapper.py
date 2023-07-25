@@ -80,19 +80,20 @@ class Binarize_ST(torch.autograd.Function):
         return grad_output.clone(), None
 
 
-class Binarize_Sigmoid(torch.autograd.Function):
+class Binarize_Sigmoid_ST(torch.autograd.Function):
     @staticmethod
-    def forward(ctx, input, sparsity_ratio):
-        return torch.bernoulli(torch.sigmoid(input))
+    def forward(ctx, input, thres):
+        probs = torch.sigmoid(input - thres)
+        return torch.bernoulli(probs)
 
     @staticmethod
     def backward(ctx, grad_output):
         return grad_output, None
 
 
-class Binarize_Sigmoid_ST(torch.autograd.Function):
+class Binarize_Sigmoid(torch.autograd.Function):
     @staticmethod
-    def forward(ctx, input, sparsity_ratio):
+    def forward(ctx, input, thres):
         mask = torch.bernoulli(torch.sigmoid(input))
         ctx.save_for_backward(mask)
         return mask
@@ -123,6 +124,7 @@ class Wrapper(nn.Module):
         self.layer_name = layer_name
         # init random with mean 1 and small std.
         self.mask = torch.nn.Parameter(torch.randn(self.layer.in_features, device=self.dev) * 0.01 + 1)
+        self.thres = args.sparsity_ratio
 
     def add_batch(self, inp, out):
         if len(inp.shape) == 2:
@@ -151,11 +153,15 @@ class Wrapper(nn.Module):
     def forward(self, x):
         if not self.track:
             if self.args.mask_binarizer == 'binarize':
-                mask_binarizer = Binarize.apply
+                mask = Binarize.apply(self.mask, self.args.sparsity_ratio).to(x)
             elif self.args.mask_binarizer == 'binarize_st':
                 mask_binarizer = Binarize_ST.apply
+                mask = mask_binarizer(self.mask, self.args.sparsity_ratio).to(x)
+            elif self.args.mask_binarizer == 'sigmoid_st':
+                mask_binarizer = Binarize_Sigmoid_ST.apply
+                mask = mask_binarizer(self.mask, self.thres).to(x)
+                print(f'layer {self.layer_name} on mask {mask.mean()}')
 
-            mask = mask_binarizer(self.mask, self.args.sparsity_ratio).to(x)
             x = x * mask
 
         # Put your own logic here
@@ -172,4 +178,6 @@ class Wrapper(nn.Module):
         #
         scores = average_logits * outgoing_edges_norm  # this should be after the relu
         self.mask.data = scores
+        if 'sigmoid' in self.args.mask_binarizer:
+            self.thres = scores.sort(stable=True)[0][:int(scores.shape[0] * self.args.sparsity_ratio)][-1]
         self.args = args
