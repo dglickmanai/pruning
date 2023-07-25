@@ -24,7 +24,9 @@ def get_args():
     parser.add_argument('--mask_train_epochs', type=int, default=0)
     parser.add_argument('--mask_train_lr', type=float, default=1e-3)
     parser.add_argument('--mask_train_bs', type=int, default=8)
-    parser.add_argument('--mask_binarizer', type=str, default='binarize', choices=['binarize', 'binarize_st'])
+    parser.add_argument('--mask_binarizer', type=str, default='binarize',
+                        choices=['binarize', 'binarize_st', 'sigmoid_st', 'sigmoid'])
+    parser.add_argument('--gradual_pruning', action='store_true')
 
     parser.add_argument('--wandb_exp_name', type=str, help='Wandb experiment name', default='pruning')
     args = parser.parse_args()

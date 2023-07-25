@@ -272,12 +272,14 @@ def train_mask(args, dataloader, device, model, tokenizer):
                                                shuffle=True)
     bs = args.mask_train_bs
     nsamples = len(dataloader)
+    sparsity = args.sparsity_ratio
     _, testloader = get_loaders(
         "wikitext2", seed=0, seqlen=model.seqlen, tokenizer=tokenizer
     )
     for i in tqdm(range(args.mask_train_epochs)):
-        # List to store negative log likelihoods
-        print(f"nsamples {nsamples}")
+
+        if args.gradual_pruning:
+            args._items['sparsity_ratio'] = (sparsity * (i + 1)) / args.mask_train_epochs
 
         # Loop through each batch
         losses = []
@@ -313,6 +315,9 @@ def train_mask(args, dataloader, device, model, tokenizer):
                 ppl = eval_ppl_wikitext(model, testloader, 8, device)
                 print(f"wiki ppl {ppl}. took {time.time() - start} seconds")
                 stats['wiki_ppl'] = ppl
+
+        if args.gradual_pruning:
+            stats['sparsity_ratio'] = args.sparsity_ratio
 
         if args.wandb_exp_name is not None and args.wandb_exp_name != "":
             import wandb
