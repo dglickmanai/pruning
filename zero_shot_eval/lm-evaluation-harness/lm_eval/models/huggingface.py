@@ -21,7 +21,7 @@ def _get_accelerate_args(
     device_map_option: Optional[str] = "auto",
     max_memory_per_gpu: Optional[Union[int, str]] = None,
     max_cpu_memory: Optional[Union[int, str]] = None,
-    offload_folder: Optional[str] = "./offload",
+    # offload_folder: Optional[str] = "./offload",
 ) -> dict:
     """Returns the kwargs needed to apply `accelerate` in `AutoModel.from_pretrained`."""
     max_memory = {}
@@ -38,7 +38,7 @@ def _get_accelerate_args(
     if max_memory:
         args["max_memory"] = max_memory
     args["device_map"] = device_map_option
-    args["offload_folder"] = offload_folder
+    # args["offload_folder"] = offload_folder
     return args
 
 
@@ -79,7 +79,7 @@ class HuggingFaceAutoLM(BaseLM):
         device_map_option: Optional[str] = "auto",
         max_memory_per_gpu: Optional[Union[int, str]] = None,
         max_cpu_memory: Optional[Union[int, str]] = None,
-        offload_folder: Optional[str] = "./offload",
+        # offload_folder: Optional[str] = "./offload",
         dtype: Optional[Union[str, torch.dtype]] = None,
         device: Optional[Union[int, str]] = "cuda",
         cache_dir=None,
