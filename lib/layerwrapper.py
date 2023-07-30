@@ -176,7 +176,12 @@ class Wrapper(nn.Module):
         outgoing_edges_norm = self.layer.weight.data.norm(p=1, dim=0) / self.layer.weight.data.shape[0]
         average_logits = torch.sqrt(self.scaler_row)  # not necesserly need sqrt
         #
-        scores = average_logits * outgoing_edges_norm  # this should be after the relu
+        if 'only_norm' in self.args.extra:
+            scores = outgoing_edges_norm
+        elif 'only_logits' in self.args.extra:
+            scores = average_logits
+        else:
+            scores = average_logits * outgoing_edges_norm  # this should be after the relu
         self.mask.data = scores
         if 'sigmoid' in self.args.mask_binarizer:
             self.thres = scores.sort(stable=True)[0][:int(scores.shape[0] * self.args.sparsity_ratio)][-1]
