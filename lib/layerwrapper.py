@@ -152,15 +152,7 @@ class Wrapper(nn.Module):
 
     def forward(self, x):
         if not self.track:
-            if self.args.mask_binarizer == 'binarize':
-                mask = Binarize.apply(self.mask, self.args.sparsity_ratio).to(x)
-            elif self.args.mask_binarizer == 'binarize_st':
-                mask_binarizer = Binarize_ST.apply
-                mask = mask_binarizer(self.mask, self.args.sparsity_ratio).to(x)
-            elif self.args.mask_binarizer == 'sigmoid_st':
-                mask_binarizer = Binarize_Sigmoid_ST.apply
-                mask = mask_binarizer(self.mask, self.thres).to(x)
-                print(f'layer {self.layer_name} on mask {mask.mean()}')
+            mask = self.get_mask(x)
 
             x = x * mask
 
@@ -170,6 +162,18 @@ class Wrapper(nn.Module):
         if self.track:
             self.add_batch(x[0].data, out.data)
         return out
+
+    def get_mask(self, x):
+        if self.args.mask_binarizer == 'binarize':
+            mask = Binarize.apply(self.mask, self.args.sparsity_ratio).to(x)
+        elif self.args.mask_binarizer == 'binarize_st':
+            mask_binarizer = Binarize_ST.apply
+            mask = mask_binarizer(self.mask, self.args.sparsity_ratio).to(x)
+        elif self.args.mask_binarizer == 'sigmoid_st':
+            mask_binarizer = Binarize_Sigmoid_ST.apply
+            mask = mask_binarizer(self.mask, self.thres).to(x)
+            print(f'layer {self.layer_name} on mask {mask.mean()}')
+        return mask
 
     def prune(self, args):
 
