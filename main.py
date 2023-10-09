@@ -39,7 +39,7 @@ def get_llm(model, max_memory):
         # offload_folder="./offload" if not isuni else None,
         max_memory=max_memory if torch.cuda.is_available() else None,
     )
-
+    # tok.pad_token = tok.eos_token
     model.seqlen = 2048
     return model
 
