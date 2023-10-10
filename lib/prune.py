@@ -208,7 +208,8 @@ def prune_wanda(args, model, tokenizer, device=torch.device("cuda:0"), prune_n=0
 
 def prune_activations(args, model, tokenizer, dataloader, device=torch.device("cuda:0")):
     wrapped_layers = wrap_model(model, args, names=args.weights_to_prune)
-
+    if args.ignore_init_masking_by_activations:
+        return
     use_cache = model.config.use_cache
     model.config.use_cache = False
 
@@ -224,33 +225,32 @@ def prune_activations(args, model, tokenizer, dataloader, device=torch.device("c
     for i in range(len(wrapped_layers)):
         layer, subset = wrapped_layers[i]
         # hook model
-        if not args.ignore_init_masking_by_activations:
-            if f"model.layers.{i}" in model.hf_device_map:  ## handle the case for llama-30B and llama-65B, when the device map has multiple GPUs;
-                dev = model.hf_device_map[f"model.layers.{i}"]
-                inps, outs, attention_mask, position_ids = inps.to(dev), outs.to(dev), attention_mask.to(
-                    dev), position_ids.to(dev)
+        if f"model.layers.{i}" in model.hf_device_map:  ## handle the case for llama-30B and llama-65B, when the device map has multiple GPUs;
+            dev = model.hf_device_map[f"model.layers.{i}"]
+            inps, outs, attention_mask, position_ids = inps.to(dev), outs.to(dev), attention_mask.to(
+                dev), position_ids.to(dev)
 
-            for x in subset.values():
-                x.track = True
+        for x in subset.values():
+            x.track = True
 
-            for j in range(args.nsamples):
-                # forward pass to register activations
-                with torch.no_grad():
-                    outs[j] = layer(inps[j].unsqueeze(0), attention_mask=attention_mask, position_ids=position_ids)[0]
+        for j in range(args.nsamples):
+            # forward pass to register activations
+            with torch.no_grad():
+                outs[j] = layer(inps[j].unsqueeze(0), attention_mask=attention_mask, position_ids=position_ids)[0]
 
-            for x in subset.values():
-                x.track = False
+        for x in subset.values():
+            x.track = False
 
-            for name in subset:
-                print(f"pruning layer {i} name {name}")
-                # prepare prune metric stats
-                subset[name].prune(args)
+        for name in subset:
+            print(f"pruning layer {i} name {name}")
+            # prepare prune metric stats
+            subset[name].prune(args)
 
-            for j in range(args.nsamples):
-                with torch.no_grad():
-                    # forward again to get next layer inputs
-                    outs[j] = layer(inps[j].unsqueeze(0), attention_mask=attention_mask, position_ids=position_ids)[0]
-            inps, outs = outs, inps
+        for j in range(args.nsamples):
+            with torch.no_grad():
+                # forward again to get next layer inputs
+                outs[j] = layer(inps[j].unsqueeze(0), attention_mask=attention_mask, position_ids=position_ids)[0]
+        inps, outs = outs, inps
     ############## pruning stats ends
 
     model.config.use_cache = use_cache
