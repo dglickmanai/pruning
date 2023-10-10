@@ -175,7 +175,7 @@ class Wrapper(nn.Module):
             print(f'layer {self.layer_name} on mask {mask.mean()}')
         return mask
 
-    def prune(self, args):
+    def set_prune_stats(self, args):
 
         outgoing_edges_norm = self.layer.weight.data.norm(p=1, dim=0) / self.layer.weight.data.shape[0]
         average_logits = torch.sqrt(self.scaler_row)  # not necesserly need sqrt

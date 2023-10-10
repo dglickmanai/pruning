@@ -244,7 +244,7 @@ def prune_activations(args, model, tokenizer, dataloader, device=torch.device("c
         for name in subset:
             print(f"pruning layer {i} name {name}")
             # prepare prune metric stats
-            subset[name].prune(args)
+            subset[name].set_prune_stats(args)
 
         for j in range(args.nsamples):
             with torch.no_grad():
