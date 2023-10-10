@@ -105,7 +105,7 @@ def pruning_experiment(args, dataloader, tokenizer):
             if args.mask_train_epochs > 0:
                 train_loader = torch.utils.data.DataLoader([x[0] for x in dataloader], batch_size=args.mask_train_bs,
                                                            shuffle=True)
-                train_mask(args, dataloader, device, model, tokenizer)
+                train_mask(args, train_loader, device, model, tokenizer)
     ################################################################
     print("*" * 30)
     sparsity_ratio = check_sparsity(model, args) if not args.prune_method == "activations" else args.sparsity_ratio
