@@ -17,12 +17,16 @@ sweep_configuration = {
                 'values': [[]]
             },
             'sparsity_ratio': {
-                # 'values': [0.5, ]
-                'values': [0.1, 0.2, 0.3, 0.4]
+                'values': [0.5, ]
+                # 'values': [0.1, 0.2, 0.3]
             },
             # 'ignore_init_masking_by_activations': {
             #     'values': [True]
             # }
+            'extra': {
+                # 'values': ['only_logits', 'only_norm', '']
+                'values': ['']
+            }
         }
 }
 
@@ -30,7 +34,7 @@ sweep_id = wandb.sweep(
     sweep=sweep_configuration,
     project='pruning'
 )
-# sweep_id = 'daniel-ai/pruning/3ixbddfg'
+# sweep_id = 'daniel-ai/pruning/k91xve33'
 
 args, dataloader, tokenizer = setup()
 

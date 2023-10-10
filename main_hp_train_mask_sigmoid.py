@@ -9,20 +9,36 @@ sweep_configuration = {
     'parameters':
         {
             'prune_method': {'values': ['activations']},
-            # 'prune_method': {'values': ['wanda']},
             'weights_to_prune': {
                 # 'values': [[], ['q_proj'], ['k_proj'], ['v_proj'], ['o_proj'], ['gate_proj'], ['down_proj'],
                 #            ['up_proj']]
-                # 'values': [['q_proj', 'k_proj', 'down_proj']]
-                'values': [[]]
+                'values': [['q_proj', 'k_proj', 'down_proj']]
+                # 'values': [[], ['q_proj']]
             },
             'sparsity_ratio': {
-                # 'values': [0.5, ]
-                'values': [0.1, 0.2, 0.3, 0.4]
+                'values': [0.3, ]
+                # 'values': [0.1, 0.2, 0.3, 0.4]
             },
-            # 'ignore_init_masking_by_activations': {
-            #     'values': [True]
-            # }
+
+            'mask_train_bs': {
+                'values': [6]
+            },
+            'mask_train_epochs': {
+                'values': [5000]
+            },
+            'ignore_init_masking_by_activations': {
+                # 'values': [True, False]
+                'values': [False]
+            },
+
+            'mask_train_lr': {
+                'values': [3e-4]
+            },
+            'mask_binarizer': {
+                # 'values': ['binarize_st', 'binarize']
+                # 'values': ['binarize_st']
+                'values': ['sigmoid_st']
+            },
         }
 }
 

@@ -279,7 +279,11 @@ def train_mask(args, dataloader, device, model, tokenizer):
     for i in tqdm(range(args.mask_train_epochs)):
 
         if args.gradual_pruning:
-            args._items['sparsity_ratio'] = (sparsity * (i + 1)) / args.mask_train_epochs
+            #depenads if running wandb exp or not
+            if hasattr(args, 'sparsity_ratio'):
+                args.sparsity_ratio = (sparsity * (i + 1)) / args.mask_train_epochs
+            else:
+                args._items['sparsity_ratio'] = (sparsity * (i + 1)) / args.mask_train_epochs
 
         # Loop through each batch
         losses = []
