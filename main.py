@@ -103,6 +103,8 @@ def pruning_experiment(args, dataloader, tokenizer):
             prune_activations(args, model, tokenizer, dataloader, device)
             torch.cuda.empty_cache()
             if args.mask_train_epochs > 0:
+                train_loader = torch.utils.data.DataLoader([x[0] for x in dataloader], batch_size=args.mask_train_bs,
+                                                           shuffle=True)
                 train_mask(args, dataloader, device, model, tokenizer)
     ################################################################
     print("*" * 30)

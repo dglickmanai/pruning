@@ -256,7 +256,7 @@ def prune_activations(args, model, tokenizer, dataloader, device=torch.device("c
     model.config.use_cache = use_cache
 
 
-def train_mask(args, dataloader, device, model, tokenizer):
+def train_mask(args, train_loader, device, model, tokenizer):
     for param in model.parameters():
         param.requires_grad = False
     wrapper_layers = [(module_name, module) for lay in
@@ -268,10 +268,8 @@ def train_mask(args, dataloader, device, model, tokenizer):
         params_to_train.append(module.mask)
     # optimizer = torch.optim.Adam(params_to_train, lr=args.mask_train_lr)
     optimizer = torch.optim.SGD(params_to_train, lr=args.mask_train_lr)
-    train_loader = torch.utils.data.DataLoader([x[0] for x in dataloader], batch_size=args.mask_train_bs,
-                                               shuffle=True)
+
     bs = args.mask_train_bs
-    nsamples = len(dataloader)
     sparsity = args.sparsity_ratio
     _, testloader = get_loaders(
         "wikitext2", seed=0, seqlen=model.seqlen, tokenizer=tokenizer
@@ -279,7 +277,7 @@ def train_mask(args, dataloader, device, model, tokenizer):
     for i in tqdm(range(args.mask_train_epochs)):
 
         if args.gradual_pruning:
-            #depenads if running wandb exp or not
+            # depenads if running wandb exp or not
             if hasattr(args, 'sparsity_ratio'):
                 args.sparsity_ratio = (sparsity * (i + 1)) / args.mask_train_epochs
             else:
