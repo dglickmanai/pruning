@@ -4,6 +4,7 @@ import argparse
 def get_args():
     parser = argparse.ArgumentParser()
     parser.add_argument('--model', type=str, help='LLaMA model', default='decapoda-research/llama-7b-hf')
+    # parser.add_argument('--model', type=str, help='LLaMA model', default='NousResearch/Llama-2-7b-hf')
     parser.add_argument('--seed', type=int, default=0, help='Seed for sampling the calibration data.')
     parser.add_argument('--nsamples', type=int, default=128, help='Number of calibration samples.')
     parser.add_argument('--sparsity_ratio', type=float, default=0, help='Sparsity level')
@@ -28,6 +29,9 @@ def get_args():
                         choices=['binarize', 'binarize_st', 'sigmoid_st', 'sigmoid'])
     parser.add_argument('--gradual_pruning', action='store_true')
     parser.add_argument('--extra', type=str, default='')
+
+    parser.add_argument('--dataset_name', type=str, default='wikitext-2',
+                        help='dataset to use. glue-xxx for GLUE specific tasks, glue-all for all, wikitext-2 for language modeling')
 
     parser.add_argument('--wandb_exp_name', type=str, help='Wandb experiment name', default='pruning')
     args = parser.parse_args()

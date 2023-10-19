@@ -256,7 +256,7 @@ def prune_activations(args, model, tokenizer, dataloader, device=torch.device("c
     model.config.use_cache = use_cache
 
 
-def train_mask(args, train_loader, device, model, tokenizer):
+def train_mask(args, train_loader, testloader, device, model, classification=False):
     for param in model.parameters():
         param.requires_grad = False
     wrapper_layers = [(module_name, module) for lay in
@@ -271,9 +271,7 @@ def train_mask(args, train_loader, device, model, tokenizer):
 
     bs = args.mask_train_bs
     sparsity = args.sparsity_ratio
-    _, testloader = get_loaders(
-        "wikitext2", seed=0, seqlen=model.seqlen, tokenizer=tokenizer
-    )
+
     for i in tqdm(range(args.mask_train_epochs)):
 
         if args.gradual_pruning:
@@ -286,18 +284,12 @@ def train_mask(args, train_loader, device, model, tokenizer):
         # Loop through each batch
         losses = []
         for batch in tqdm(train_loader):
-            # Prepare inputs and move to device
-            batch = batch.squeeze(1).to(model.device)
-
-            lm_logits = model(batch).logits
-
-            # Shift logits and labels for next token prediction
-            shift_logits = lm_logits[:, :-1, :]
-            shift_labels = batch[:, 1:]
-
-            # Compute loss
-            loss_fct = nn.CrossEntropyLoss()
-            loss = loss_fct(shift_logits.reshape(-1, shift_logits.size(-1)), shift_labels.reshape(-1))
+            if not classification:
+                loss = language_modeling_train_step(batch, model)
+            else:
+                print(batch)
+                out = model(batch['input_ids'], batch['attention_mask'])
+                print(out)
 
             # Backward pass
             optimizer.zero_grad()
@@ -324,6 +316,18 @@ def train_mask(args, train_loader, device, model, tokenizer):
         if args.wandb_exp_name is not None and args.wandb_exp_name != "":
             import wandb
             wandb.log(stats)
+
+
+def language_modeling_train_step(batch, model):
+    batch = batch.squeeze(1).to(model.device)
+    lm_logits = model(batch).logits
+    # Shift logits and labels for next token prediction
+    shift_logits = lm_logits[:, :-1, :]
+    shift_labels = batch[:, 1:]
+    # Compute loss
+    loss_fct = nn.CrossEntropyLoss()
+    loss = loss_fct(shift_logits.reshape(-1, shift_logits.size(-1)), shift_labels.reshape(-1))
+    return loss
 
 
 @torch.no_grad()

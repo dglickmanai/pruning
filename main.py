@@ -1,4 +1,8 @@
 import os
+
+from accelerate import init_empty_weights, load_checkpoint_and_dispatch
+from datasets import load_dataset
+
 import utils
 
 # if on university
@@ -6,7 +10,7 @@ from args import get_args
 from lib.data import get_loaders
 
 isuni = os.path.isdir('/home/lab/glickmd1')
-num_device = 6
+num_device = 4
 if isuni:
     os.environ["HF_DATASETS_CACHE"] = "/home/lab/glickmd1/.cache/huggingface/datasets"
     # os.environ["CUDA_VISIBLE_DEVICES"] = str(utils.get_random_with_gpu_with_gb_free(70, num_device))
@@ -17,10 +21,11 @@ if isuni:
 # os.environ["CUDA_VISIBLE_DEVICES"] = str(gpu)
 import numpy as np
 import torch
-from transformers import AutoTokenizer, AutoModelForCausalLM
+from transformers import AutoTokenizer, AutoModelForCausalLM, AutoModelForSequenceClassification
 from importlib.metadata import version
 
-from lib.prune import prune_wanda, prune_magnitude, prune_sparsegpt, check_sparsity, prune_activations, train_mask
+from lib.prune import prune_wanda, prune_magnitude, prune_sparsegpt, check_sparsity, prune_activations, train_mask, \
+    wrap_model
 from lib.eval import eval_ppl
 
 print('torch', version('torch'))
@@ -29,17 +34,73 @@ print('accelerate', version('accelerate'))
 print('# of gpus: ', torch.cuda.device_count())
 
 
-def get_llm(model, max_memory):
-    model = AutoModelForCausalLM.from_pretrained(
-        model,
-        torch_dtype=torch.float16 if isuni else None,
-        # load_in_8bit=True,
-        low_cpu_mem_usage=True,
-        device_map="auto" if isuni else None,
-        # offload_folder="./offload" if not isuni else None,
-        max_memory=max_memory if torch.cuda.is_available() else None,
-    )
-    # tok.pad_token = tok.eos_token
+def get_llm(model, max_memory, num_labels):
+    if not num_labels:
+        model = AutoModelForCausalLM.from_pretrained(
+            model,
+            torch_dtype=torch.float16 if isuni else None,
+            # load_in_8bit=True,
+            low_cpu_mem_usage=True,
+            device_map="auto" if isuni else None,
+            # offload_folder="./offload" if not isuni else None,
+            # disabled....
+            # max_memory=max_memory if torch.cuda.is_available() else None,
+        )
+    else:
+        # with init_empty_weights():
+        #     model = AutoModelForSequenceClassification.from_pretrained(
+        #         model,
+        #         torch_dtype=torch.float16 if isuni else None,
+        #         # load_in_8bit=True,
+        #         # low_cpu_mem_usage=True,
+        #         # device_map="auto" if isuni else None,
+        #         # low_cpu_mem_usage=False,
+        #         # offload_folder="./offload" if not isuni else None,
+        #         # max_memory=max_memory if torch.cuda.is_available() else None,
+        #         num_labels=num_labels
+        #     )
+        # model.tie_weights()
+        # model = load_checkpoint_and_dispatch(model,
+        #                                      '/home/lab/glickmd1/.cache/huggingface/hub/models--decapoda-research--llama-7b-hf/snapshots/5f98eefcc80e437ef68d457ad7bf167c2c6a1348',
+        #                                      device_map={
+        #                                          # TODO uncomment 0
+        #                                          '': 'cpu',
+        #                                          'model.embed_tokens': 0, 'model.layers.0': 0,
+        #                                          'model.layers.1': 0, 'model.layers.2': 0,
+        #                                          'model.layers.3': 0, 'model.layers.4': 0,
+        #                                          'model.layers.5': 0, 'model.layers.6': 0,
+        #                                          'model.layers.7': 1, 'model.layers.8': 1,
+        #                                          'model.layers.9': 1, 'model.layers.10': 1,
+        #                                          'model.layers.11': 1, 'model.layers.12': 1,
+        #                                          'model.layers.13': 1, 'model.layers.14': 1,
+        #                                          'model.layers.15': 1, 'model.layers.16': 2,
+        #                                          'model.layers.17': 2, 'model.layers.18': 2,
+        #                                          'model.layers.19': 2, 'model.layers.20': 2,
+        #                                          'model.layers.21': 2, 'model.layers.22': 2,
+        #                                          'model.layers.23': 2, 'model.layers.24': 2,
+        #                                          'model.layers.25': 3, 'model.layers.26': 3,
+        #                                          'model.layers.27': 3, 'model.layers.28': 3,
+        #                                          'model.layers.29': 3, 'model.layers.30': 3,
+        #                                          'model.layers.31': 3, 'model.norm': 3, 'score': 3})
+
+        # model = AutoModelForSequenceClassification.from_pretrained(
+        #     model,
+        #     torch_dtype=torch.float16 if isuni else None,
+        #     # load_in_8bit=True,
+        #     # low_cpu_mem_usage=True,
+        #     device_map="auto" if isuni else None,
+        #     # low_cpu_mem_usage=False,
+        #     # offload_folder="./offload" if not isuni else None,
+        #     # max_memory=max_memory if torch.cuda.is_available() else None,
+        #     num_labels=num_labels
+        # )
+        # TODO: cpu for now...
+        model = AutoModelForSequenceClassification.from_pretrained(
+            model,
+            torch_dtype=torch.float16 if isuni else None,
+            num_labels=num_labels,
+            use_auth_token=True
+        )
     model.seqlen = 2048
     return model
 
@@ -47,19 +108,29 @@ def get_llm(model, max_memory):
 def main():
     args, dataloader, tokenizer = setup()
 
-    pruning_experiment(args, dataloader, tokenizer)
+    if 'glue' in args.dataset_name:
+        assert args.mask_train_epochs > 0
+        training_pruning_experiment(args, dataloader, tokenizer)
+    else:
+        pruning_experiment(args, dataloader, tokenizer)
 
 
 def setup():
     args = get_args()
-    tokenizer = AutoTokenizer.from_pretrained(args.model, use_fast=False)
+    tokenizer = AutoTokenizer.from_pretrained(args.model, use_fast=False, use_auth_token=True,
+                                              model_max_length=2048
+                                              )
     print("loading calibdation data")
+    if 'glue' in args.dataset_name:
+        ds_name = args.dataset_name.split('glue-')[-1]
+        dataset = load_dataset("glue", ds_name)
+        return args, dataset, tokenizer
     dataloader, _ = get_loaders("c4", nsamples=args.nsamples, seed=args.seed, seqlen=2048, tokenizer=tokenizer)
     print("dataset loading complete")
     return args, dataloader, tokenizer
 
 
-def get_device_and_model(args):
+def get_device_and_model(args, num_labels=None):
     gpus = utils.get_gpu_memory(num_device)
     gpu_num = [*gpus.keys()][0]
 
@@ -67,12 +138,31 @@ def get_device_and_model(args):
     print(f"loading llm model {args.model}")
     max_memory = {x: f'{(y // 1024 - 16)}GB' for x, y in gpus.items()}
     max_memory['cpu'] = '40GB'
-    model = get_llm(args.model, max_memory)
+    model = get_llm(args.model, max_memory, num_labels)
     model.eval()
     if "30b" in args.model or "65b" in args.model:  # for 30b and 65b we use device_map to load onto multiple A6000 GPUs, thus the processing here.
         device = model.hf_device_map["lm_head"]
     print("use device ", device)
     return device, model
+
+
+def training_pruning_experiment(args, dataloader, tokenizer):
+    np.random.seed(args.seed)
+    torch.random.manual_seed(args.seed)
+
+    if args.wandb_exp_name is not None and args.wandb_exp_name != "":
+        import wandb
+        wandb.init(project=args.wandb_exp_name, config=args)
+        args = wandb.config
+
+    device, model = get_device_and_model(args, num_labels=dataloader['train'].shape[-1])
+
+    if args.mask_train_epochs > 0:
+        train_loader = torch.utils.data.DataLoader(dataloader['train'], shuffle=True, batch_size=8)
+        test_loader = torch.utils.data.DataLoader(dataloader['test'], batch_size=8)
+        wrap_model(model, args, names=args.weights_to_prune)
+        train_mask(args, train_loader, test_loader, device, model,classification=True)
+    ################################################################
 
 
 def pruning_experiment(args, dataloader, tokenizer):
@@ -105,7 +195,10 @@ def pruning_experiment(args, dataloader, tokenizer):
             if args.mask_train_epochs > 0:
                 train_loader = torch.utils.data.DataLoader([x[0] for x in dataloader], batch_size=args.mask_train_bs,
                                                            shuffle=True)
-                train_mask(args, train_loader, device, model, tokenizer)
+                _, testloader = get_loaders(
+                    "wikitext2", seed=0, seqlen=model.seqlen, tokenizer=tokenizer
+                )
+                train_mask(args, train_loader, testloader, device, model)
     ################################################################
     print("*" * 30)
     sparsity_ratio = check_sparsity(model, args) if not args.prune_method == "activations" else args.sparsity_ratio
