@@ -16,19 +16,18 @@ def process_mprc(dataset, tokenizer):
 
     return tokenized_datasets
 
-
-class MRPCDataset(torch.utils.data.Dataset):
-    def __init__(self, dataset, tokenizer):
-        encodings = tokenizer(dataset['sentence1'], dataset['sentence2'], truncation=True, padding="max_length")
-
-        self.encodings = encodings
-        self.labels = torch.tensor(dataset['label'])
-        self.shape = self.labels.shape
-
-    def __getitem__(self, idx):
-        item = {key: torch.tensor(val[idx]) for key, val in self.encodings.items()}
-        item['labels'] = torch.tensor(self.labels[idx])
-        return item
-
-    def __len__(self):
-        return len(self.labels)
+# class MRPCDataset(torch.utils.data.Dataset):
+#     def __init__(self, dataset, tokenizer):
+#         encodings = tokenizer(dataset['sentence1'], dataset['sentence2'], truncation=True, padding="max_length")
+#
+#         self.encodings = encodings
+#         self.labels = torch.tensor(dataset['label'])
+#         self.shape = self.labels.shape
+#
+#     def __getitem__(self, idx):
+#         item = {key: torch.tensor(val[idx]) for key, val in self.encodings.items()}
+#         item['labels'] = torch.tensor(self.labels[idx])
+#         return item
+#
+#     def __len__(self):
+#         return len(self.labels)
