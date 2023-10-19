@@ -8,6 +8,7 @@ import utils
 # if on university
 from args import get_args
 from lib.data import get_loaders
+from lib.dataset import process_mprc
 
 isuni = os.path.isdir('/home/lab/glickmd1')
 num_device = 4
@@ -95,12 +96,13 @@ def get_llm(model, max_memory, num_labels):
         #     num_labels=num_labels
         # )
         # TODO: cpu for now...
-        model = AutoModelForSequenceClassification.from_pretrained(
-            model,
-            torch_dtype=torch.float16 if isuni else None,
-            num_labels=num_labels,
-            use_auth_token=True
-        )
+        with init_empty_weights():
+            model = AutoModelForSequenceClassification.from_pretrained(
+                model,
+                torch_dtype=torch.float16 if isuni else None,
+                num_labels=num_labels,
+                use_auth_token=True
+            )
     model.seqlen = 2048
     return model
 
@@ -124,6 +126,8 @@ def setup():
     if 'glue' in args.dataset_name:
         ds_name = args.dataset_name.split('glue-')[-1]
         dataset = load_dataset("glue", ds_name)
+        if ds_name.lower() == 'mrpc':
+            dataset = process_mprc(dataset, tokenizer)
         return args, dataset, tokenizer
     dataloader, _ = get_loaders("c4", nsamples=args.nsamples, seed=args.seed, seqlen=2048, tokenizer=tokenizer)
     print("dataset loading complete")
@@ -161,7 +165,7 @@ def training_pruning_experiment(args, dataloader, tokenizer):
         train_loader = torch.utils.data.DataLoader(dataloader['train'], shuffle=True, batch_size=8)
         test_loader = torch.utils.data.DataLoader(dataloader['test'], batch_size=8)
         wrap_model(model, args, names=args.weights_to_prune)
-        train_mask(args, train_loader, test_loader, device, model,classification=True)
+        train_mask(args, train_loader, test_loader, device, model, classification=True)
     ################################################################
 
 
