@@ -22,7 +22,8 @@ if isuni:
 # os.environ["CUDA_VISIBLE_DEVICES"] = str(gpu)
 import numpy as np
 import torch
-from transformers import AutoTokenizer, AutoModelForCausalLM, AutoModelForSequenceClassification
+from transformers import AutoTokenizer, AutoModelForCausalLM, AutoModelForSequenceClassification, \
+    LlamaForSequenceClassification, LlamaModel
 from importlib.metadata import version
 
 from lib.prune import prune_wanda, prune_magnitude, prune_sparsegpt, check_sparsity, prune_activations, train_mask, \
@@ -48,61 +49,23 @@ def get_llm(model, max_memory, num_labels):
             # max_memory=max_memory if torch.cuda.is_available() else None,
         )
     else:
-        # with init_empty_weights():
-        #     model = AutoModelForSequenceClassification.from_pretrained(
-        #         model,
-        #         torch_dtype=torch.float16 if isuni else None,
-        #         # load_in_8bit=True,
-        #         # low_cpu_mem_usage=True,
-        #         # device_map="auto" if isuni else None,
-        #         # low_cpu_mem_usage=False,
-        #         # offload_folder="./offload" if not isuni else None,
-        #         # max_memory=max_memory if torch.cuda.is_available() else None,
-        #         num_labels=num_labels
-        #     )
-        # model.tie_weights()
-        # model = load_checkpoint_and_dispatch(model,
-        #                                      '/home/lab/glickmd1/.cache/huggingface/hub/models--decapoda-research--llama-7b-hf/snapshots/5f98eefcc80e437ef68d457ad7bf167c2c6a1348',
-        #                                      device_map={
-        #                                          # TODO uncomment 0
-        #                                          '': 'cpu',
-        #                                          'model.embed_tokens': 0, 'model.layers.0': 0,
-        #                                          'model.layers.1': 0, 'model.layers.2': 0,
-        #                                          'model.layers.3': 0, 'model.layers.4': 0,
-        #                                          'model.layers.5': 0, 'model.layers.6': 0,
-        #                                          'model.layers.7': 1, 'model.layers.8': 1,
-        #                                          'model.layers.9': 1, 'model.layers.10': 1,
-        #                                          'model.layers.11': 1, 'model.layers.12': 1,
-        #                                          'model.layers.13': 1, 'model.layers.14': 1,
-        #                                          'model.layers.15': 1, 'model.layers.16': 2,
-        #                                          'model.layers.17': 2, 'model.layers.18': 2,
-        #                                          'model.layers.19': 2, 'model.layers.20': 2,
-        #                                          'model.layers.21': 2, 'model.layers.22': 2,
-        #                                          'model.layers.23': 2, 'model.layers.24': 2,
-        #                                          'model.layers.25': 3, 'model.layers.26': 3,
-        #                                          'model.layers.27': 3, 'model.layers.28': 3,
-        #                                          'model.layers.29': 3, 'model.layers.30': 3,
-        #                                          'model.layers.31': 3, 'model.norm': 3, 'score': 3})
-
-        # model = AutoModelForSequenceClassification.from_pretrained(
-        #     model,
-        #     torch_dtype=torch.float16 if isuni else None,
-        #     # load_in_8bit=True,
-        #     # low_cpu_mem_usage=True,
-        #     device_map="auto" if isuni else None,
-        #     # low_cpu_mem_usage=False,
-        #     # offload_folder="./offload" if not isuni else None,
-        #     # max_memory=max_memory if torch.cuda.is_available() else None,
-        #     num_labels=num_labels
-        # )
-        # TODO: cpu for now...
         with init_empty_weights():
             model = AutoModelForSequenceClassification.from_pretrained(
                 model,
                 torch_dtype=torch.float16 if isuni else None,
-                num_labels=num_labels,
-                use_auth_token=True
+                # load_in_8bit=True,
+                # low_cpu_mem_usage=True,
+                # device_map="auto" if isuni else None,
+                # low_cpu_mem_usage=False,
+                # offload_folder="./offload" if not isuni else None,
+                # max_memory=max_memory if torch.cuda.is_available() else None,
+                num_labels=num_labels
             )
+        # model.tie_weights()
+        model = load_checkpoint_and_dispatch(model,
+                                             '/home/lab/glickmd1/.cache/huggingface/hub/models--decapoda-research--llama-7b-hf/snapshots/custom_model',
+                                             device_map='auto')
+
     model.seqlen = 2048
     return model
 
