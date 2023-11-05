@@ -114,9 +114,11 @@ def training_pruning_experiment(args, dataloader, tokenizer):
 
     if args.mask_train_epochs > 0:
         train_loader = torch.utils.data.DataLoader(dataloader['train'], shuffle=True, batch_size=8,
-                                                   collate_fn=DataCollatorWithPadding(tokenizer, pad_to_multiple_of=8))
+                                                   collate_fn=DataCollatorWithPadding(tokenizer, pad_to_multiple_of=8,
+                                                                                      padding=True))
         test_loader = torch.utils.data.DataLoader(dataloader['test'], batch_size=8,
-                                                  collate_fn=DataCollatorWithPadding(tokenizer, pad_to_multiple_of=8))
+                                                  collate_fn=DataCollatorWithPadding(tokenizer, pad_to_multiple_of=8,
+                                                                                     padding=True))
         wrap_model(model, args, names=args.weights_to_prune)
         train_mask(args, train_loader, test_loader, device, model, classification=True)
     ################################################################
