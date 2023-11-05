@@ -1,10 +1,8 @@
 import os
 
-from accelerate import init_empty_weights, load_checkpoint_and_dispatch
 from datasets import load_dataset
 
 import utils
-
 # if on university
 from args import get_args
 from lib.data import get_loaders
@@ -23,7 +21,7 @@ if isuni:
 import numpy as np
 import torch
 from transformers import AutoTokenizer, AutoModelForCausalLM, AutoModelForSequenceClassification, \
-    LlamaForSequenceClassification, LlamaModel
+    DataCollatorWithPadding
 from importlib.metadata import version
 
 from lib.prune import prune_wanda, prune_magnitude, prune_sparsegpt, check_sparsity, prune_activations, train_mask, \
@@ -49,22 +47,12 @@ def get_llm(model, max_memory, num_labels):
             # max_memory=max_memory if torch.cuda.is_available() else None,
         )
     else:
-        with init_empty_weights():
-            model = AutoModelForSequenceClassification.from_pretrained(
-                model,
-                torch_dtype=torch.float16 if isuni else None,
-                # load_in_8bit=True,
-                # low_cpu_mem_usage=True,
-                # device_map="auto" if isuni else None,
-                # low_cpu_mem_usage=False,
-                # offload_folder="./offload" if not isuni else None,
-                # max_memory=max_memory if torch.cuda.is_available() else None,
-                num_labels=num_labels
-            )
-        # model.tie_weights()
-        model = load_checkpoint_and_dispatch(model,
-                                             '/home/lab/glickmd1/.cache/huggingface/hub/models--decapoda-research--llama-7b-hf/snapshots/custom_model',
-                                             device_map='auto')
+        model = AutoModelForSequenceClassification.from_pretrained(
+            model,
+            torch_dtype=torch.float16 if isuni else None,
+            device_map="auto" if isuni else None,
+            num_labels=num_labels
+        )
 
     model.seqlen = 2048
     return model
@@ -125,8 +113,10 @@ def training_pruning_experiment(args, dataloader, tokenizer):
     device, model = get_device_and_model(args, num_labels=dataloader['train'].shape[-1])
 
     if args.mask_train_epochs > 0:
-        train_loader = torch.utils.data.DataLoader(dataloader['train'], shuffle=True, batch_size=8)
-        test_loader = torch.utils.data.DataLoader(dataloader['test'], batch_size=8)
+        train_loader = torch.utils.data.DataLoader(dataloader['train'], shuffle=True, batch_size=8,
+                                                   collate_fn=DataCollatorWithPadding(tokenizer, pad_to_multiple_of=8))
+        test_loader = torch.utils.data.DataLoader(dataloader['test'], batch_size=8,
+                                                  collate_fn=DataCollatorWithPadding(tokenizer, pad_to_multiple_of=8))
         wrap_model(model, args, names=args.weights_to_prune)
         train_mask(args, train_loader, test_loader, device, model, classification=True)
     ################################################################

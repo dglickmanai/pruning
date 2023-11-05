@@ -6,8 +6,8 @@ conda activate prune_llm
 ```
 Step 2: Install relevant packages
 ```
-conda install pytorch==1.10.1 torchvision==0.11.2 torchaudio==0.10.1 cudatoolkit=11.3 -c pytorch -c conda-forge
-pip install transformers==4.28.0 datasets==2.11.0 wandb sentencepiece
+conda install pytorch torchvision torchaudio pytorch-cuda=12.1 -c pytorch -c nvidia
+pip install transformers==4.35.0 datasets==2.11.0 wandb sentencepiece
 pip install accelerate==0.18.0
 
 [//]: # (pip install bitsandbytes>=0.39.0)
