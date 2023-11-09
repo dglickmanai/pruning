@@ -6,6 +6,7 @@ from .eval import eval_ppl_wikitext
 from .sparsegpt import SparseGPT
 from .layerwrapper import WrappedGPT, Wrapper
 from .data import get_loaders
+# import evaluate
 
 
 def find_layers(module, layers=[nn.Linear], name='', names=[]):
@@ -284,12 +285,14 @@ def train_mask(args, train_loader, testloader, device, model, classification=Fal
         # Loop through each batch
         losses = []
         for batch in tqdm(train_loader):
+            batch = batch.to(device)
             if not classification:
                 loss = language_modeling_train_step(batch, model)
             else:
-                print(batch)
                 out = model(batch['input_ids'], batch['attention_mask'])
-                print(out)
+                logits = out.logits.float()
+                loss_fct = nn.CrossEntropyLoss()
+                loss = loss_fct(logits, batch['labels'])
 
             # Backward pass
             optimizer.zero_grad()
@@ -305,10 +308,16 @@ def train_mask(args, train_loader, testloader, device, model, classification=Fal
         stats = {'train_loss': avg_loss}
         if i % 5 == 0:
             with torch.no_grad():
-                start = time.time()
-                ppl = eval_ppl_wikitext(model, testloader, 8, device)
-                print(f"wiki ppl {ppl}. took {time.time() - start} seconds")
-                stats['wiki_ppl'] = ppl
+                metric = evaluate.load("accuracy")
+                model.eval()
+                for batch in testloader:
+                    batch = batch.to(device)
+                    with torch.no_grad():
+                        out = model(batch['input_ids'], batch['attention_mask'])
+
+                    logits = out.logits.float()
+                    predictions = torch.argmax(logits, dim=-1)
+                    metric.add_batch(predictions=predictions, references=batch["labels"])
 
         if args.gradual_pruning:
             stats['sparsity_ratio'] = args.sparsity_ratio

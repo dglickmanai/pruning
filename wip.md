@@ -34,3 +34,36 @@ ValueError: Trying to set a tensor of shape torch.Size([4, 4096]) in "weight" (w
 Looks like I saved a model with 4 classes and trying to load it with 3 classes
 an option to fix this is to save the model for every individual number of class every time,
 i.e check if exists, if not load on cpu and save..
+
+
+-----
+ValueError: pyarrow.lib.IpcWriteOptions size changed, may indicate binary incompatibility. Expected 88 from C header, got 72 from PyObject
+is solved by deleting pyarrow and installing version 11.0.0
+but it causes datasets package to change version
+which leads to an error(AttributeError: module 'datasets' has no attribute 'load_dataset')
+
+
+-----
+pip arrow 11.0.0
+conda arrow 12.0.1
+pip&conda datasets 2.11.0
+
+conda remove pyarrow
+same conda and pip
+
+pip remove pyarrow
+conda install pyarrow==11.0.0
+
+now pip and conda are version 11.0.0
+and dataset is still 2.11.0
+
+now getting error:ModuleNotFoundError: No module named 'aiohttp'
+when importing datasets
+
+conda instal aiohttp
+conda install pandas
+
+now import works
+but using load_dataset gives error: AttributeError: module 'xxhash' has no attribute 'xxh64'
+
+todo: make evaluate work..
