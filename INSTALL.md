@@ -7,7 +7,8 @@ conda activate prune_llm
 Step 2: Install relevant packages
 ```
 conda install pytorch torchvision torchaudio pytorch-cuda=12.1 -c pytorch -c nvidia
-conda install evaluate
+pip install evaluate
+pip install scikit-learn
 pip install transformers==4.35.0 datasets==2.11.0 wandb sentencepiece
 pip install accelerate==0.18.0
 

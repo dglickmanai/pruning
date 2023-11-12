@@ -67,3 +67,12 @@ now import works
 but using load_dataset gives error: AttributeError: module 'xxhash' has no attribute 'xxh64'
 
 todo: make evaluate work..
+
+works before installing evaluate
+
+if working on this, freeze env and copy it to the side so I can roll back
+
+
+1) evaluate is not working
+
+2) define what I want to show gal on monday.

@@ -6,7 +6,7 @@ from .eval import eval_ppl_wikitext
 from .sparsegpt import SparseGPT
 from .layerwrapper import WrappedGPT, Wrapper
 from .data import get_loaders
-# import evaluate
+import evaluate
 
 
 def find_layers(module, layers=[nn.Linear], name='', names=[]):
