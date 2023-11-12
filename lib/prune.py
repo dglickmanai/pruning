@@ -318,7 +318,7 @@ def train_mask(args, train_loader, testloader, device, model, classification=Fal
                     logits = out.logits.float()
                     predictions = torch.argmax(logits, dim=-1)
                     metric.add_batch(predictions=predictions, references=batch["labels"])
-
+            stats.update(metric.compute())
         if args.gradual_pruning:
             stats['sparsity_ratio'] = args.sparsity_ratio
 
