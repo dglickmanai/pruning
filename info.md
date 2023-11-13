@@ -29,3 +29,7 @@ pass child masks to it some how
 
 ** instead of wrapping, we can just compute the thres value such that %s of the total mask weights will be < thres.. then just pass the thres refernce to each mask module
 **
+
+llamam mlp:
+        activations = self.act_fn(self.gate_proj(x)) * self.up_proj(x) # projected from dim 4k to 11k. activation is silu, so numbers are not all positive
+        return self.down_proj(activations)

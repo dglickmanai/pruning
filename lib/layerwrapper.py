@@ -123,7 +123,9 @@ class Wrapper(nn.Module):
         self.layer_id = layer_id
         self.layer_name = layer_name
         # init random with mean 1 and small std.
-        self.mask = torch.nn.Parameter(torch.randn(self.layer.in_features, device=self.dev) * 0.001 + 1)
+        self.mask = torch.nn.Parameter(torch.randn(self.layer.in_features, device=self.dev))
+        nn.init.constant_(self.mask, 1.0)
+
         self.thres = args.sparsity_ratio
 
     def add_batch(self, inp, out):
