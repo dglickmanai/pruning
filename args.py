@@ -26,7 +26,7 @@ def get_args():
     parser.add_argument('--mask_train_lr', type=float, default=1e-3)
     parser.add_argument('--mask_train_bs', type=int, default=8)
     parser.add_argument('--mask_binarizer', type=str, default='binarize',
-                        choices=['binarize', 'binarize_st', 'sigmoid_st', 'sigmoid'])
+                        choices=['binarize', 'binarize_st', 'sigmoid_st', 'sigmoid', 'scaler'])
     parser.add_argument('--gradual_pruning', action='store_true')
     parser.add_argument('--extra', type=str, default='')
 

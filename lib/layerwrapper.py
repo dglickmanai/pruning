@@ -175,6 +175,8 @@ class Wrapper(nn.Module):
             mask_binarizer = Binarize_Sigmoid_ST.apply
             mask = mask_binarizer(self.mask, self.thres).to(x)
             print(f'layer {self.layer_name} on mask {mask.mean()}')
+        elif self.args.mask_binarizer == 'scaler':
+            return self.mask.to(x)
         return mask
 
     def set_prune_stats(self, args):

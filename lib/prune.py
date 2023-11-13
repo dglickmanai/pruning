@@ -278,7 +278,7 @@ def train_mask(args, train_loader, testloader, device, model, classification=Fal
         if args.gradual_pruning:
             # depenads if running wandb exp or not
             if hasattr(args, 'sparsity_ratio'):
-                args.sparsity_ratio = (sparsity * (i + 1)) / args.mask_train_epochs
+                args.update({'sparsity_ratio': (sparsity * (i + 1)) / args.mask_train_epochs}, allow_val_change=True)
             else:
                 args._items['sparsity_ratio'] = (sparsity * (i + 1)) / args.mask_train_epochs
 
