@@ -9,8 +9,9 @@ from lib.data import get_loaders
 from lib.dataset import process_mprc
 
 isuni = os.path.isdir('/home/lab/glickmd1')
-num_device = 4
-devices_to_use = [0, 1, 2]
+
+num_device = 2
+devices_to_use = [0, 1]
 if isuni:
     os.environ["HF_DATASETS_CACHE"] = "/home/lab/glickmd1/.cache/huggingface/datasets"
     # os.environ["CUDA_VISIBLE_DEVICES"] = str(utils.get_random_with_gpu_with_gb_free(70, num_device))
