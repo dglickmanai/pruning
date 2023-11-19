@@ -76,3 +76,6 @@ if working on this, freeze env and copy it to the side so I can roll back
 1) evaluate is not working
 
 2) define what I want to show gal on monday.
+
+## 19.11
+I started using 4 gpus instead, it worked quit easily by just using the max_memory argument when loading a torch model
