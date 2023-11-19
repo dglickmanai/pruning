@@ -51,7 +51,8 @@ def get_llm(model, max_memory, num_labels):
             model,
             torch_dtype=torch.float16 if isuni else None,
             device_map="auto" if isuni else None,
-            num_labels=num_labels
+            num_labels=num_labels,
+            max_memory=max_memory
         )
 
     model.seqlen = 2048
