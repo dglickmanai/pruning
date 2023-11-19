@@ -79,3 +79,21 @@ if working on this, freeze env and copy it to the side so I can roll back
 
 ## 19.11
 I started using 4 gpus instead, it worked quit easily by just using the max_memory argument when loading a torch model
+
+
+only scalers are being effected..
+there are 61k params being trained.
+are they masks(binary) or scalers?
+
+I can use larger batch sizes or less gpu when doing peft
+
+
+theory:
+masks are initialized as ones. after 1 epoch, only about 18 out of 4k are not 1(is some randomly selected layer). 
+low numbers are consistent across layers, but numbers are not the same in all layers..
+this means most neurons are not being updated even..
+**possible not being fired even**
+
+
+
+

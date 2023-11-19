@@ -10,6 +10,7 @@ from lib.dataset import process_mprc
 
 isuni = os.path.isdir('/home/lab/glickmd1')
 num_device = 4
+devices_to_use = [0, 1, 2]
 if isuni:
     os.environ["HF_DATASETS_CACHE"] = "/home/lab/glickmd1/.cache/huggingface/datasets"
     # os.environ["CUDA_VISIBLE_DEVICES"] = str(utils.get_random_with_gpu_with_gb_free(70, num_device))
@@ -88,6 +89,8 @@ def setup():
 
 def get_device_and_model(args, num_labels=None):
     gpus = utils.get_gpu_memory(num_device)
+    gpus = {k: v for k, v in gpus.items() if k in devices_to_use}
+
     gpu_num = [*gpus.keys()][0]
 
     device = torch.device(f"cuda:{gpu_num}") if torch.cuda.is_available() else torch.device("cpu")
