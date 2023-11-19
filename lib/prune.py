@@ -280,7 +280,6 @@ def train_mask(args, train_loader, testloader, device, model, classification=Fal
     optimizer = torch.optim.Adam(params_to_train, lr=args.mask_train_lr)
     # optimizer = torch.optim.SGD(params_to_train, lr=args.mask_train_lr)
 
-    bs = args.mask_train_bs
     sparsity = args.sparsity_ratio
 
     for i in tqdm(range(args.mask_train_epochs)):
