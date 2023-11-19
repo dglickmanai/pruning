@@ -264,7 +264,7 @@ def assert_optimizer(optimizer):
         num_zero_grad = sum(state.grad == 0.)
         num_elements = len(state.grad)
         zero_grad_ratio = num_zero_grad / num_elements
-        assert zero_grad_ratio > 0.01
+        assert zero_grad_ratio > 0.01,'using adam but there are no gradients.. probably using pure masking'
 
 
 def train_mask(args, train_loader, testloader, device, model, classification=False):
@@ -310,9 +310,9 @@ def train_mask(args, train_loader, testloader, device, model, classification=Fal
             optimizer.step()
 
             losses.append(loss.item())
-            assert_optimizer(optimizer)
-            # print(f"train loss {loss.item()}")
 
+            # print(f"train loss {loss.item()}")
+        assert_optimizer(optimizer)
         avg_loss = sum(losses) / len(losses)
         print(f"train loss {avg_loss}")
 
