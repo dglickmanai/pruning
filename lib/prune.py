@@ -257,6 +257,16 @@ def prune_activations(args, model, tokenizer, dataloader, device=torch.device("c
     model.config.use_cache = use_cache
 
 
+def assert_optimizer(optimizer):
+    if not 'adam' in str(optimizer).lower():
+        return
+    for state in optimizer.state:
+        num_zero_grad = sum(state.grad == 0.)
+        num_elements = len(state.grad)
+        zero_grad_ratio = num_zero_grad / num_elements
+        assert zero_grad_ratio > 0.01
+
+
 def train_mask(args, train_loader, testloader, device, model, classification=False):
     for param in model.parameters():
         param.requires_grad = False
@@ -267,8 +277,8 @@ def train_mask(args, train_loader, testloader, device, model, classification=Fal
     for (module_name, module) in wrapper_layers:
         module.mask.requires_grad = True
         params_to_train.append(module.mask)
-    # optimizer = torch.optim.Adam(params_to_train, lr=args.mask_train_lr)
-    optimizer = torch.optim.SGD(params_to_train, lr=args.mask_train_lr)
+    optimizer = torch.optim.Adam(params_to_train, lr=args.mask_train_lr)
+    # optimizer = torch.optim.SGD(params_to_train, lr=args.mask_train_lr)
 
     bs = args.mask_train_bs
     sparsity = args.sparsity_ratio
@@ -300,6 +310,7 @@ def train_mask(args, train_loader, testloader, device, model, classification=Fal
             optimizer.step()
 
             losses.append(loss.item())
+            assert_optimizer(optimizer)
             # print(f"train loss {loss.item()}")
 
         avg_loss = sum(losses) / len(losses)
